@@ -11,9 +11,9 @@ global-include *.svg
 
 graft doc
 graft test
-graft ontos
-graft hermit
-graft pellet
+graft src/owlready2/ontos
+graft src/owlready2/hermit
+graft src/owlready2/pellet
 graft locale
 
 include ./LICENSE.txt

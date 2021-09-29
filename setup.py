@@ -27,7 +27,7 @@ if len(sys.argv) <= 1: sys.argv.append("install")
 
 import setuptools
 
-version = open(os.path.join(HERE, "__init__.py")).read().split('VERSION = "', 1)[1].split('"', 1)[0]
+version = open(os.path.join(HERE, "src/owlready2/__init__.py")).read().split('VERSION = "', 1)[1].split('"', 1)[0]
 
 def do_setup(extensions):
   return setuptools.setup(
@@ -59,14 +59,17 @@ def do_setup(extensions):
     "Topic :: Software Development :: Libraries :: Python Modules",
     ],
   
-  package_dir  = {"owlready2" : HERE},
+  package_dir  = {'' : 'src'},
   packages     = ["owlready2", "owlready2.pymedtermino2", "owlready2.sparql"],
   package_data = {"owlready2" : ["owlready_ontology.owl",
-                                 "ontos/*.owl",
-                                 "hermit/*.*", "hermit/org/semanticweb/HermiT/*", "hermit/org/semanticweb/HermiT/cli/*", "hermit/org/semanticweb/HermiT/hierarchy/*",
-                                 "pellet/*.*", "pellet/org/mindswap/pellet/taxonomy/printer/*",
+                                 "src/owlready2/ontos/*.owl",
+                                 "src/owlready2/hermit/*.*",
+                                 "src/owlready2/hermit/org/semanticweb/HermiT/*",
+                                 "src/owlready2/hermit/org/semanticweb/HermiT/cli/*",
+                                 "src/owlready2/hermit/org/semanticweb/HermiT/hierarchy/*",
+                                 "src/owlready2/pellet/*.*",
+                                 "src/owlready2/pellet/org/mindswap/pellet/taxonomy/printer/*",
                                 ]},
-  
   ext_modules = extensions,
 )
 
@@ -80,17 +83,3 @@ try:
   
 except:
   dist = do_setup([])
-
-
-if len(sys.argv) >= 2 and sys.argv[1] == "develop":
-    # `python setup.py develop` (and `pip install -e .`) assumes a directory structure
-    # where the package to be installed lives in a subirectory.
-    # However, to maintain backward compatibility, this package is structured
-    # differently. To allow `python setup.py develop` anyway, we do some manual
-    # tweaks.
-
-    # Note: relative import not possible here due to PEP 338
-    # Thus, we use an absolute import assuming that the name is unique
-    # noinspection PyUnresolvedReferences
-    from setup_develop_mode import install_develop_mode
-    install_develop_mode(dist)
