@@ -55,7 +55,9 @@
 ### View `quads`
 > Combine Table `datas` and Table `objs`. Column `d` is set to `NULL` in Table `objs`
 > 
-> `CREATE VIEW quads AS SELECT c,s,p,o,NULL AS d FROM objs UNION ALL SELECT c,s,p,o,d FROM datas`
+```sqlite
+CREATE VIEW quads AS SELECT c,s,p,o,NULL AS d FROM objs UNION ALL SELECT c,s,p,o,d FROM datas
+```
 
 | column | type    | default | description |
 |--------|---------|---------|-------------|
