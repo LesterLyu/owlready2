@@ -15,10 +15,10 @@
 
 | column | type    | default | description |
 |--------|---------|---------|-------------|
-| c      | INTEGER |         | Context/Ontology ID    |
-| s      | INTEGER |         | Subject     |
-| p      | INTEGER |         | Predicate   |
-| o      | INTEGER |         | Object      |
+| c      | INTEGER |         | Context/[Ontology ID](#table-ontologies)    |
+| s      | INTEGER |         | [Subject](#table-resources)     |
+| p      | INTEGER |         | [Predicate](#table-resources)   |
+| o      | INTEGER |         | [Object](#table-resources)      |
 
 #### Example
 | c | s   | p | o  |
@@ -33,11 +33,11 @@
 
 | column | type    | default | description |
 |--------|---------|---------|-------------|
-| c      | INTEGER |         | Context/Ontology ID    |
-| s      | INTEGER |         | Subject     |
-| p      | INTEGER |         | Predicate   |
-| o      | BLOB    |         | Object      |
-| d      | INTEGER |         | data type, or could be '@en', '@fr',...  |
+| c      | INTEGER |         | Context/[Ontology ID](#table-ontologies)    |
+| s      | INTEGER |         | [Subject](#table-resources)     |
+| p      | INTEGER |         | [Predicate](#table-resources)   |
+| o      | BLOB    |         | Object, the actual data      |
+| d      | INTEGER |         | [data type](#table-resources), or could be '@en', '@fr',...  |
 
 #### Example
 | c | s   | p   | o                                           | d   |
@@ -59,11 +59,11 @@
 
 | column | type    | default | description |
 |--------|---------|---------|-------------|
-| c      | INTEGER |         | Context/Ontology ID    |
-| s      | INTEGER |         | Subject     |
-| p      | INTEGER |         | Predicate   |
+| c      | INTEGER |         | Context/[Ontology ID](#table-ontologies)    |
+| s      | INTEGER |         | [Subject](#table-resources)     |
+| p      | INTEGER |         | [Predicate](#table-resources)   |
 | o      | BLOB    |         | Object      |
-| d      | INTEGER | NULL    | data type, or could be NULL, '@en', '@fr',...    |
+| d      | INTEGER | NULL    | [data type](#table-resources), or could be NULL, '@en', '@fr',...    |
 
 ### Table `ontologies`
 
