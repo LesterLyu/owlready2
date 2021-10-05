@@ -7,8 +7,9 @@
       - Manage the connection to the SQLite file, in memory or on disk.
       - Initialize the database with predefined schema. L169-201
       - Upgrade previous database schema to latest schema (to version 9). L218-411
-  - `analyze()` Analyze the database, make sure `sqlite_stat1` table is consistent with other tables, why?. L416
-  - Handle write lock. L455-L461
+  - `analyze()` Data integrity check, make sure `sqlite_stat1` table is consistent with other tables, why?. L416
+    - invoked when database is opened and closed, and when the number of the newly added triples is greater than 1000.
+  - `acquire_write_lock(), release_write_lock(), has_write_lock()` Locking protocol. Lock the `Graph`. Make the library supports parallelism. L455-L461
   - `select_abbreviate_method(self)` Make `world`, `subgraph`, `subgraph.onto` uses the `_abbreviate(...)` and
     `_unabbreviate(...)` method defined in triplelite. L463-483
   - `_abbreviate(self, iri)` Map IRI to `storid`.  L513
