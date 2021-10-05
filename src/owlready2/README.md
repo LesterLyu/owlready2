@@ -3,10 +3,11 @@
  An SQLite Store
 
  Class `Graph`
-  - Manage the connection to the SQLite file, in memory or on disk.
-  - Initialize the database with predefined schema. L169-201
-  - Upgrade previous database schema to latest schema (to version 9). L218-411
-  - Analyze the database, make sure `sqlite_stat1` table is consistent with other tables, why?. L416
+  - `__init__` constructor
+      - Manage the connection to the SQLite file, in memory or on disk.
+      - Initialize the database with predefined schema. L169-201
+      - Upgrade previous database schema to latest schema (to version 9). L218-411
+  - `analyze()` Analyze the database, make sure `sqlite_stat1` table is consistent with other tables, why?. L416
   - Handle write lock. L455-L461
   - `select_abbreviate_method(self)` Make `world`, `subgraph`, `subgraph.onto` uses the `_abbreviate(...)` and
     `_unabbreviate(...)` method defined in triplelite. L463-483
