@@ -94,22 +94,24 @@ Class `SubGraph`: Subgraph from `Graph`.
     
 Class `_SearchMixin`: Inherits `list`
 
-Class `_PopulatedSearchList`: 
+Class `_PopulatedSearchList`: **?**
 
-Class `_SearchList`: Construct SQL statement for `search(...)`.
+Class `_SearchList`: Construct SQL statement for `graph.search(...)`.
 
-Class `_PopulatedUnionSearchList`
+Class `_PopulatedUnionSearchList` **?**
   
-Class `_UnionSearchList`
+Class `_UnionSearchList` Construct UNION SQL statement.
   
-Class `_PopulatedIntersectionSearchList`
+Class `_PopulatedIntersectionSearchList` **?**
   
-Class `_IntersectionSearchList`
+Class `_IntersectionSearchList` Construct Intersection SQL statement.
 
 ### `rdflib_store.py`
 
-  - class `TripleLiteRDFlibStore` implements the [Abstracted Store API `rdflib.store.Store`](https://rdflib.readthedocs.io/en/stable/apidocs/rdflib.html#rdflib.store.Store)
-
+- class `TripleLiteRDFlibStore` implements the [Abstracted Store API `rdflib.store.Store`](https://rdflib.readthedocs.io/en/stable/apidocs/rdflib.html#rdflib.store.Store)
+- class `TripleLiteRDFlibGraph` inherits [`rdflib.Graph`](https://rdflib.readthedocs.io/en/stable/apidocs/rdflib.html#rdflib.Graph).
+  Adds `query_owlready(...)` method that automatically converts the results from `query()` to Python and Owlready2.
+  
 ### `namespace.py`
   
   The main owlready2 entrance 
@@ -135,7 +137,7 @@ Class `_IntersectionSearchList`
   Class `Metadata`
 
 ### `individual.py`
-Class `Thing`: The class for user to define ontology class, instance of `Thing` is also the *Named Individual* of the ontology class.
+Class `Thing`: The class for user to define ontology class, instance of class `Thing` is also the *Named Individual* of the ontology class.
 
 Class `NoThing` ?
 
