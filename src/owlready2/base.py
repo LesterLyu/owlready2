@@ -157,7 +157,7 @@ def _parse_date(s):
 
 def _parse_datetime(s):
   for format in ["%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S.%f%z"]:
-    try:    return datetime.datetime.strptime(s, format)
+    try:    return datetime.datetime.strptime(s.replace(" ", "T"), format)
     except: pass
   raise ValueError("Cannot parse ISO datetime '%s'!" % s)
 
@@ -186,7 +186,8 @@ def set_datatype_iri(datatype, iri):
 
   
 def declare_datatype(datatype, iri, parser, unparser):
-  storid = _universal_abbrev(iri)
+  if iri in _universal_iri_2_abbrev: storid = _universal_iri_2_abbrev[iri]
+  else:                              storid = _universal_abbrev(iri)
   from owlready2 import WORLDS
   for world in WORLDS:
     if not world.graph.read_only:

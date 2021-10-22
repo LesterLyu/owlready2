@@ -1,4 +1,4 @@
-import sys, os, unittest, tempfile, atexit, datetime
+import sys, os, unittest, tempfile, atexit, datetime, subprocess, multiprocessing
 from io import StringIO, BytesIO
 
 """
@@ -2543,6 +2543,35 @@ class Test(BaseTest, unittest.TestCase):
       c = C()
     assert p[c] == []
     assert p[C] == []
+        
+  def test_prop_51(self):
+    w = self.new_world()
+    o = w.get_ontology("http://test.org/o.owl")
+    with o:
+      class p (ObjectProperty): pass
+      class p2(p): pass
+      class q (ObjectProperty): pass
+      
+      class dp (DataProperty): pass
+      class dp2(dp): pass
+      class dq (DataProperty): pass
+      
+      class ap (AnnotationProperty): pass
+      class ap2(ap): pass
+      class aq (AnnotationProperty): pass
+      
+    assert set(ObjectProperty.descendants(world = w)) == { ObjectProperty, p, p2, q }
+    assert set(ObjectProperty.descendants(world = w, include_self = False)) == { p, p2, q }
+    
+    assert set(DataProperty.descendants(world = w)) == { DataProperty, dp, dp2, dq }
+    assert set(DataProperty.descendants(world = w, include_self = False)) == { dp, dp2, dq }
+    
+    assert set(AnnotationProperty.descendants(world = w)) == { AnnotationProperty, ap, ap2, aq, versionInfo, comment, priorVersion, seeAlso, backwardCompatibleWith, deprecated, label, incompatibleWith, isDefinedBy }
+    assert set(AnnotationProperty.descendants(world = w, include_self = False)) == { ap, ap2, aq, versionInfo, comment, priorVersion, seeAlso, backwardCompatibleWith, deprecated, label, incompatibleWith, isDefinedBy }
+    
+    assert set(ObjectProperty    .subclasses(world = w)) == { p , q  }
+    assert set(DataProperty      .subclasses(world = w)) == { dp, dq }
+    assert set(AnnotationProperty.subclasses(world = w)) == { ap, aq, versionInfo, comment, priorVersion, seeAlso, backwardCompatibleWith, deprecated, label, incompatibleWith, isDefinedBy }
     
     
   def test_prop_inverse_1(self):
@@ -3273,6 +3302,23 @@ I took a placebo
         return
       
     assert False
+    
+  def test_reasoning_11(self):
+    world = self.new_world()
+    onto  = world.get_ontology("http://test.org/test.owl")
+    
+    with onto:
+      class C(Thing): pass
+      class p1(C >> float, FunctionalProperty): pass
+      class p2(C >> float, FunctionalProperty): label = "p"
+      class p3(C >> float, FunctionalProperty): python_name = "py"
+      
+    sync_reasoner(world, debug = 0)
+    
+    assert p1.is_a == [DataProperty, FunctionalProperty]
+    assert p2.is_a == [DataProperty, FunctionalProperty]
+    assert p3.is_a == [DataProperty, FunctionalProperty]
+    
      
   def test_pellet_reasoning_1(self):
     world = self.new_world()
@@ -6069,6 +6115,38 @@ ask where
     gc.collect(); gc.collect(); gc.collect()
     
     assert onto.c1.p[0].value == 14
+
+  def test_datatype_4(self):
+    class AnyURI(object):
+      def __init__(self, value):
+        self.value = value
+    
+    def parser  (s): return AnyURI(s)
+    def unparser(x): return x.value
+    
+    world1 = self.new_world()
+    world2 = self.new_world()
+    onto1  = world1.get_ontology("http://www.test.org/t.owl")
+    
+    anyuri_storid = declare_datatype(AnyURI, "http://www.w3.org/2001/XMLSchema#anyURI", parser, unparser)
+    
+    with onto1:
+      class p(Thing >> AnyURI): pass
+      
+      class C(Thing): pass
+
+      c1 = C()
+      c1.p.append(AnyURI("xxx"))
+      
+    self.assert_triple(c1.storid, p.storid, "xxx", anyuri_storid, world1)
+
+    f = self.new_tmp_file()
+    onto1.save(f)
+    
+    onto2 = world2.get_ontology(f).load()
+    x = onto2.c1.p[0]
+    assert isinstance(x, AnyURI)
+    assert x.value == "xxx"
     
     
   def test_inverse_1(self):
@@ -7085,10 +7163,183 @@ Cheese ⊓ Vegetable ⊑ ⊥""".split("\n"))
       class C(Thing): pass
       C.creator.append("JBL")
       C.coverage.append("test")
+
+
+  def test_parallel_1(self):
+    q  = self.new_tmp_file()
+    world = World(filename = q, exclusive = False)
+    world.save()
+    world.close()
+    
+    py = self.new_tmp_file()
+    f = open(py, "w")
+    f.write("""
+from owlready2 import *
+
+world = World(filename = "%s", exclusive = False)
+
+onto = world.get_ontology("http://test.org/onto.owl")
+
+with onto:
+  class Drug(Thing): pass
+  class p(Thing >> Thing): pass
+    
+  for i in range(200):
+    drug = onto.Drug(label = ["eee"])
+    drug.is_a.append(p.some(Drug))
+    
+  world.save()
+""" % q)
+    f.close()
+
+    NB = 5
+    ps = []
+    rs = []
+    for i in range(NB): ps.append(subprocess.Popen([sys.executable, py]))
+    for p in ps: rs.append(p.wait())
+    for r in rs: assert r == 0
+    
+    world = World(filename = q, exclusive = False)
+    s = world.graph.execute("SELECT MAX(storid) FROM resources").fetchone()[0]
+    assert s == 300 + 4 + 200 * NB
+    
+  def test_parallel_2(self):
+    q  = self.new_tmp_file()
+    world = World(filename = q, exclusive = False)
+    world.save()
+    world.close()
+    
+    py = self.new_tmp_file()
+    f = open(py, "w")
+    f.write("""
+import os, time
+from owlready2 import *
+
+world = World(filename = "%s", exclusive = False)
+
+onto = world.get_ontology("http://test.org/onto.owl")
+
+with onto:
+  class Drug(Thing): pass
+  class p(Thing >> Thing): pass
+  world.save()
+    
+for i in range(500):
+  with onto:
+    drug = onto.Drug(label = ["lab" + str(os.getpid())])
+    drug.is_a.append(p.some(Drug))
+    
+    world.save()
+  time.sleep(0.0001)
+
+""" % q)
+    f.close()
+
+    NB = 5
+    ps = []
+    rs = []
+    for i in range(NB): ps.append(subprocess.Popen([sys.executable, py]))
+    for p in ps: rs.append(p.wait())
+    for r in rs: assert r == 0
+    
+    world = World(filename = q, exclusive = False)
+    s = world.graph.execute("SELECT MAX(storid) FROM resources").fetchone()[0]
+    assert s == 300 + 4 + 500 * NB
+    
+    onto = world.get_ontology("http://test.org/onto.owl")
+    labels = [onto["drug%s" % (i + 1)].label.first() for i in range(500)]
+    assert len(set(labels)) > 1
+    
+  def test_parallel_3(self):
+    q  = self.new_tmp_file()
+    world = World(filename = q, exclusive = False)
+    
+    onto = world.get_ontology("http://test.org/onto.owl")
+    world.save()
+    
+    def do_test():
+      with onto:
+        class Drug(Thing): pass
+        class p(Thing >> Thing): pass
+        
+        for i in range(1000):
+          drug = onto.Drug(label = ["eee"])
+          drug.is_a.append(p.some(Drug))
+          
+        world.save()
+        
+    NB = 5
+    ps = []
+    for i in range(NB): ps.append(multiprocessing.Process(target = do_test, args = ()))
+    for p in ps: p.start()
+    for p in ps: p.join()
+    for p in ps: assert p.exitcode == 0
+    
+    s = world.graph.execute("SELECT MAX(storid) FROM resources").fetchone()[0]
+    assert s == 300 + 4 + 1000 * NB
+
+  def test_parallel_4(self):
+    q  = self.new_tmp_file()
+    world = World(filename = q, exclusive = False)
+    
+    onto = world.get_ontology("http://test.org/onto.owl")
+    world.save()
+    
+    def do_test(label):
+      with onto:
+        class Drug(Thing): pass
+        class p(Thing >> Thing): pass
+        world.save()
+        
+      for i in range(500):
+        with onto:
+          drug = onto.Drug(label = [label])
+          drug.is_a.append(p.some(Drug))
+        world.save()
+        time.sleep(0.0001)
+    NB = 2
+    ps = []
+    for i in range(NB): ps.append(multiprocessing.Process(target = do_test, args = ("lab%s" % i,)))
+    for p in ps: p.start()
+    for p in ps: p.join()
+    for p in ps: assert p.exitcode == 0
+    
+    s = world.graph.execute("SELECT MAX(storid) FROM resources").fetchone()[0]
+    assert s == 300 + 4 + 500 * NB
+    
+    labels = [onto["drug%s" % (i + 1)].label.first() for i in range(500)]
+    assert len(set(labels)) > 1
+    
+  def test_parallel_5(self):
+    q  = self.new_tmp_file()
+    world = World(filename = q, exclusive = False)
+    world.save()
+    
+    def do_test():
+      onto = world.get_ontology("http://test.org/onto.owl")
       
+      with onto:
+        class Drug(Thing): pass
+        class p(Thing >> Thing): pass
+        
+        for i in range(200):
+          drug = onto.Drug(label = "eee")
+          drug.is_a.append(p.some(Drug))
+          
+      world.save()
       
-      
-      
+    NB = 5
+    ps = []
+    for i in range(NB): ps.append(multiprocessing.Process(target = do_test, args = ()))
+    for p in ps: p.start()
+    for p in ps: p.join()
+    for p in ps: assert p.exitcode == 0
+    
+    s = world.graph.execute("SELECT MAX(storid) FROM resources").fetchone()[0]
+    assert s == 300 + 4 + 200 * NB
+
+    
+    
 class Paper(BaseTest, unittest.TestCase):
   def test_reasoning_paper_ic2017(self):
     world = self.new_world()
@@ -8215,7 +8466,7 @@ class TestSPARQL(BaseTest, unittest.TestCase):
     world, onto = self.prepare1()
     onto2 = world.get_ontology("http://test.org/insertions.owl")
     with onto2:
-      q, r = self.sparql(world, """INSERT  { ?a a owl:NamedIndividual . ?a a onto:A . ?b onto:rel ?a }  WHERE  { ?b a onto:B . BIND(NEWINSTANCEIRI(onto:A) AS ?a) }""", compare_with_rdflib = False)
+      q, r = self.sparql(world, """INSERT  { ?b onto:rel ?a }  WHERE  { ?b a onto:B . BIND(NEWINSTANCEIRI(onto:A) AS ?a) }""", compare_with_rdflib = False)
     assert r == [3]
     assert len(onto2.graph) == 10
     assert onto2.a1.is_a == [onto.A]
@@ -8511,7 +8762,7 @@ http://test.org/onto.owl#A\tClasse A
     assert xml.replace("\r", "") == '<?xml version="1.0"?>\n<sparql xmlns="http://www.w3.org/2005/sparql-results#">\n  <head>\n    <variable name="x"/>\n    <variable name="y"/>\n  </head>\n  <results>\n    <result>\n      <binding name="x">\n        <uri>http://test.org/onto.owl#a1</uri>\n      </binding>\n      <binding name="y">\n        <literal datatype="http://www.w3.org/2001/XMLSchema#string">test " \' </literal>\n      </binding>\n    </result>\n    <result>\n      <binding name="x">\n        <uri>http://test.org/onto.owl#rel</uri>\n      </binding>\n      <binding name="y">\n        <literal datatype="http://www.w3.org/2001/XMLSchema#string">rel</literal>\n      </binding>\n    </result>\n    <result>\n      <binding name="x">\n        <uri>http://test.org/onto.owl#price</uri>\n      </binding>\n      <binding name="y">\n        <literal datatype="http://www.w3.org/2001/XMLSchema#string">price</literal>\n      </binding>\n    </result>\n    <result>\n      <binding name="x">\n        <uri>http://test.org/onto.owl#b3</uri>\n      </binding>\n      <binding name="y">\n        <literal xml:lang="fr">label_b</literal>\n      </binding>\n    </result>\n    <result>\n      <binding name="x">\n        <uri>http://test.org/onto.owl#b2</uri>\n      </binding>\n      <binding name="y">\n        <literal xml:lang="en">label_b</literal>\n      </binding>\n    </result>\n    <result>\n      <binding name="x">\n        <uri>http://test.org/onto.owl#b1</uri>\n      </binding>\n      <binding name="y">\n        <literal xml:lang="en">label_b</literal>\n      </binding>\n    </result>\n    <result>\n      <binding name="x">\n        <uri>http://test.org/onto.owl#A1</uri>\n      </binding>\n      <binding name="y">\n        <literal datatype="http://www.w3.org/2001/XMLSchema#string">Classe A1</literal>\n      </binding>\n    </result>\n    <result>\n      <binding name="x">\n        <uri>http://test.org/onto.owl#A</uri>\n      </binding>\n      <binding name="y">\n        <literal datatype="http://www.w3.org/2001/XMLSchema#string">Classe A</literal>\n      </binding>\n    </result>\n  </results>\n</sparql>\n'.replace("\r", "")
     
   def test_116(self):
-    import flask, werkzeug.serving, multiprocessing, urllib.request, time
+    import flask, werkzeug.serving, urllib.request, time
     from owlready2.sparql.endpoint import EndPoint
     world, onto = self.prepare1()
     
@@ -8777,7 +9028,7 @@ WHERE {
     q, r = self.sparql(world, """SELECT ?x { { ?x a/rdfs:subClassOf*STATIC onto:A . } UNION { ?x a/rdfs:subClassOf*STATIC onto:B . } }""", compare_with_rdflib = False)
     assert not "WITH" in q.sql
     assert set(i[0] for i in r) == { onto.a1, a11, onto.b1, onto.b2, onto.b3 }
-
+    
   def test_139(self):
     world, onto = self.prepare1()
     a11 = onto.A11()
@@ -8788,7 +9039,6 @@ WHERE {
     assert not "WITH" in q.sql
     assert set(i[0] for i in r) == { onto.A, onto.A1, onto.A11, onto.A2, onto.B }
     
-    
   def test_140(self):
     world, onto = self.prepare1()
     q1, r = self.sparql(world, """SELECT  (CONCAT(??, ?l) AS ?l2) { ?? rdfs:label ?l }""", [locstr("test_", "fr"), onto.a1], compare_with_rdflib = False)
@@ -8797,9 +9047,42 @@ WHERE {
     assert { x[0] for x in r } == { "test_label_a" }
     assert isinstance(r[0][0], locstr)
     assert r[0][0].lang == "fr"
-
-
+    
+  def test_141(self):
+    world, onto = self.prepare1()
+    a11 = onto.A1()
+    q, r = self.sparql(world, """SELECT  ?x { ?x a ?c . { ?c rdfs:subClassOf* onto:A } UNION { ?c rdfs:subClassOf onto:B } }""", compare_with_rdflib = False)
+    assert { i[0] for i in r } == { a11, onto.a1 }
+    q, r = self.sparql(world, """SELECT  ?x { ?x a ?c . { ?c rdfs:subClassOf onto:A } UNION { ?c rdfs:subClassOf* onto:B } }""", compare_with_rdflib = False)
+    assert { i[0] for i in r } == { a11, onto.b1, onto.b2, onto.b3 }
+    
+  def test_142(self):
+    world, onto = self.prepare1()
+    q, r = self.sparql(world, """SELECT  ?x { ?x a ?c . { ?c rdfs:subClassOf* onto:A } UNION { ?c rdfs:subClassOf* onto:B } }""", compare_with_rdflib = False)
+    assert { i[0] for i in r } == { onto.a1, onto.b1, onto.b2, onto.b3 }
+    
+  def test_143(self):
+    world, onto = self.prepare1()
+    with onto:
+      class C(Thing): pass
+      C()
+      a111 = onto.A11()
       
+    q, r = self.sparql(world, """SELECT  ?x { ?x a ?c . { ?c rdfs:subClassOf*STATIC onto:A } UNION { ?c rdfs:subClassOf onto:B } }""", compare_with_rdflib = False)
+    assert { i[0] for i in r } == { onto.a1, a111 }
+    q, r = self.sparql(world, """SELECT  ?x { ?x a ?c . { ?c rdfs:subClassOf* onto:A } UNION { ?c rdfs:subClassOf* onto:B } }""", compare_with_rdflib = False)
+    assert { i[0] for i in r } == { onto.a1, a111, onto.b1, onto.b2, onto.b3 }
+    q, r = self.sparql(world, """SELECT  ?x { ?x a ?c . { ?c rdfs:subClassOf* onto:A } UNION { ?c rdfs:subClassOf*STATIC onto:B } }""", compare_with_rdflib = False)
+    assert { i[0] for i in r } == { onto.a1, a111, onto.b1, onto.b2, onto.b3 }
+    q, r = self.sparql(world, """SELECT  ?x { ?x a ?c . { ?c rdfs:subClassOf*STATIC onto:A } UNION { ?c rdfs:subClassOf*STATIC onto:B } }""", compare_with_rdflib = False)
+    assert { i[0] for i in r } == { onto.a1, a111, onto.b1, onto.b2, onto.b3 }
+    
+    #q, r = self.sparql(world, """SELECT  ?x { ?x a ?c . { ?c rdfs:subClassOf*STATIC onto:A } }""", compare_with_rdflib = False)
+    #print(r)
+    #print(q.sql)
+    #assert { i[0] for i in r } == { onto.a1, a111 }
+    
+    
     
 # Add test for Pellet
 

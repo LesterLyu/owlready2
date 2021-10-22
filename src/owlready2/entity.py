@@ -343,7 +343,7 @@ class EntityClass(type):
       for equivalent in Class.equivalent_to.indirect():
         if isinstance(equivalent, Class.__class__) and not equivalent in s:
           equivalent._fill_descendants(s, True, only_loaded, world, onto)
-          
+    
     for x in world._get_obj_triples_transitive_po(Class._rdfs_is_a, Class.storid):
       if not x < 0:
         if only_loaded:
@@ -513,7 +513,7 @@ SELECT q.o FROM objs q, prelim1_objs rec WHERE q.p=33 AND q.s=rec.s)
 
 SELECT q1.s FROM objs q1 WHERE q1.p=6 AND (q1.o IN (SELECT s FROM prelim1_objs) OR q1.o IN (SELECT s FROM prelim2_objs) ) ;
 """
-    return q.execute_flat((Class,))
+    return list(q.execute_flat((Class,)))
   
   def direct_instances(Class, world = None):
     if Class.namespace.world is owl_world:

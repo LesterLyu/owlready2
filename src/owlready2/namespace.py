@@ -73,16 +73,15 @@ class Namespace(object):
 
   def __enter__(self):
     if self.ontology is None: raise ValueError("Cannot assert facts in this namespace: it is not linked to an ontology! (it is probably a global namespace created by get_namespace(); please use your_ontology.get_namespace() instead)")
-    if self.world.graph: self.world.graph.acquire_write_lock()
+    if self.world.graph:
+      self.world.graph.acquire_write_lock()
     l = CURRENT_NAMESPACES.get()
     if l is None: CURRENT_NAMESPACES.set([self])
     else:         l.append(self)
     return self
-
   def __exit__(self, exc_type = None, exc_val = None, exc_tb = None):
     del CURRENT_NAMESPACES.get()[-1]
     if self.world.graph: self.world.graph.release_write_lock()
-
   def __repr__(self): return """%s.get_namespace("%s")""" % (self.ontology, self.base_iri)
 
   def __getattr__(self, attr): return self.world["%s%s" % (self.base_iri, attr)] #return self[attr]
@@ -572,7 +571,6 @@ class World(_GraphManager):
     if base_iri in self.ontologies: return self.ontologies[base_iri]
     # `world.ontologies[self.base_iri] = self` is executed in the Ontology class
     return (OntologyClass or Ontology)(self, base_iri, graph_iri=graph_iri)
-
   def get_namespace(self, base_iri, name = "", NamespaceClass = None):
     if (not base_iri.endswith("/")) and (not base_iri.endswith("#")) and (not base_iri.endswith(":")):
       if   ("%s#" % base_iri) in self.ontologies: base_iri = base_iri = "%s#" % base_iri
@@ -838,6 +836,9 @@ class World(_GraphManager):
 
 class Ontology(Namespace, _GraphManager):
   def __init__(self, world, base_iri, name = None, graph_iri=None):
+    #need_write = False
+    if world.graph: world.graph.acquire_write_lock()
+
     self.graph_iri = graph_iri or base_iri
     self.world       = world # Those 2 attributes are required before calling Namespace.__init__
     self._namespaces = weakref.WeakValueDictionary()
@@ -845,8 +846,16 @@ class Ontology(Namespace, _GraphManager):
     self.loaded                = False
     self._bnodes               = weakref.WeakValueDictionary()
     self.storid                = world._abbreviate(base_iri[:-1])
+    #self.storid                = world._abbreviate(base_iri[:-1], False)
+    #if self.storid is None:
+    #  if world.graph and not need_write:
+    #    need_write = True
+    #    world.graph.acquire_write_lock()
+    #  self.storid              = world._abbreviate(base_iri[:-1], True)
+
     self._imported_ontologies  = CallbackList([], self, Ontology._import_changed)
     self.metadata              = Metadata(self, self.storid)
+#if world.graph: world.graph.acquire_write_lock()
 
     if world.graph is None:
       self.graph = None
@@ -862,11 +871,14 @@ class Ontology(Namespace, _GraphManager):
 
     if (not LOADING) and (not self.graph is None):
       if not self._has_obj_triple_spo(self.storid, rdf_type, owl_ontology):
-        if self.world.graph: self.world.graph.acquire_write_lock()
+        #if not need_write:
+        #  need_write = True
+        #  world.graph.acquire_write_lock()
         self._add_obj_triple_spo(self.storid, rdf_type, owl_ontology)
-        if self.world.graph: self.world.graph.release_write_lock()
 
     if not self.world._rdflib_store is None: self.world._rdflib_store._add_onto(self)
+if world.graph: world.graph.release_write_lock()
+    #if need_write: world.graph.release_write_lock()
 
   def destroy(self):
     self.world.graph.acquire_write_lock()
@@ -907,11 +919,7 @@ class Ontology(Namespace, _GraphManager):
     if not r is None: return r
     return Namespace(self, base_iri, name or base_iri[:-1].rsplit("/", 1)[-1])
 
-  #def __exit__(self, exc_type = None, exc_val = None, exc_tb = None):
-  #  Namespace.__exit__(self, exc_type, exc_val, exc_tb)
-  #  if not self.loaded:
-  #    self.loaded = True
-  #    if self.graph: self.graph.set_last_update_time(time.time())
+
   def __enter__(self): # Do this in __enter__ and not __exit__, because set_last_update_time() modify the database. Modifying the database in __exit__ prevents calling World.save() inside the 'with onto:' block.
     Namespace.__enter__(self)
     if not self.loaded:
@@ -927,6 +935,7 @@ class Ontology(Namespace, _GraphManager):
 
   def load(self, only_local = False, fileobj = None, reload = False, reload_if_newer = False, url = None, **args):
     if self.loaded and (not reload): return self
+
 
     if   self.base_iri in PREDEFINED_ONTOLOGIES:
       f = os.path.join(os.path.dirname(__file__), "ontos", PREDEFINED_ONTOLOGIES[self.base_iri])

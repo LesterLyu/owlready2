@@ -605,13 +605,18 @@ version 2 - 0.35
 * SPARQL optimizations
 * Support for VALUES in SPARQL
 * Add STATIC optimization keyword extension to SPARQL
-* Accept GROUP BY, HAVING, LIMIT in INSERT and DELETE query
-* Add the STORID(iri) SPARQL function
+* Accept GROUP BY, HAVING, LIMIT in INSERT and DELETE SPARQL query
+* Add the STORID(iri), DATE(), TIME() and DATETIME() SPARQL function
+* UMLS CUI are now hierarchized by Semnatic Types (TUI)
+* Improved parallelism
 * Bugfixes:
+  - Fix 'sqlite3.OperationalError: circular reference: prelim1_objs' in .instances(), caused by a bug in old versions of SQLite3
   - Fix SPARQL INSERT query with data parameters in the INSERT clause
   - Fix RDF list parsing when the list includes the integer number 5
   - Fix nb_parameter in SPARQL query when numbered parameters are used
-  - Fix 'sqlite3.OperationalError: circular reference: prelim1_objs' in .instances(), caused by a bug in old versions of SQLite3
+  - Fix ObjectProperty.subclasses(), ObjectProperty.descendants(), Property.subclasses(), DataProperty.descendants(), AnnotationProperty.subclasses(), AnnotationProperty.descendants()
+  - Fix declare_datatype() for datatype already used in Owlready, such as AnyURI
+  - Fix Pellet on properties having annotations that are not declared in the loaded ontologies
 
     
 Links
