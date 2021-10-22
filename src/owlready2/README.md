@@ -138,6 +138,7 @@ Class `_IntersectionSearchList` Construct Intersection SQL statement.
 
 ### `individual.py`
 Class `Thing`: The class for user to define ontology class, instance of class `Thing` is also the *Named Individual* of the ontology class.
+- `__setattr__(self, attr, value)` Does not check ontology consistent.
 
 Class `NoThing` ?
 

@@ -254,4 +254,4 @@ class Environment(object):
   def __enter__(self): self.level.set(self.level.get() + 1)
   
   def __exit__(self, exc_type = None, exc_val = None, exc_tb = None): self.level.set(self.level.get() - 1)
-    
+

@@ -136,19 +136,19 @@ class Graph(BaseMainGraph):
 
         def fetchall(self, *args, **kwargs):
           data = self.__cursor.fetchall(*args, **kwargs)
-          print(f'fetchall({args, kwargs}) -> {data}')
+          # print(f'fetchall({args, kwargs}) -> {data}')
           return data
 
         def fetchone(self, *args, **kwargs):
           data = self.__cursor.fetchone(*args, **kwargs)
-          print(f'fetchone({args, kwargs}) -> {data}')
+          # print(f'fetchone({args, kwargs}) -> {data}')
           return data
 
         def __iter__(self, *args, **kwargs):
           return self.__cursor.__iter__(*args, **kwargs)
 
       def exec(*args, **kwargs):
-        print(f'Called from: {type(self).__name__}.{inspect.currentframe().f_back.f_code.co_name}(' + ', '.join(inspect.currentframe().f_back.f_code.co_varnames) + f')\nagrs: {args}, kwargs: {kwargs}')
+        # print(f'Called from: {type(self).__name__}.{inspect.currentframe().f_back.f_code.co_name}(' + ', '.join(inspect.currentframe().f_back.f_code.co_varnames) + f')\nagrs: {args}, kwargs: {kwargs}')
         result = FakeSQLiteCursor(self.db.execute(*args, **kwargs))
 
         return result
@@ -1509,7 +1509,7 @@ class SubGraph(BaseSubGraph):
 
   def _refactor(self, storid, new_iri): return self.parent._refactor(storid, new_iri)
 
-  def _get_obj_triples_transitive_sp(self, s, p):
+  def _get_obj_triples_transitive_sp(self, s, p): # Return all nested properties with the given s and p
     for (x,) in self.execute("""
 WITH RECURSIVE transit(x)
 AS (  SELECT o FROM objs WHERE c=? AND s=? AND p=?
@@ -1550,7 +1550,7 @@ class _SearchMixin(list):
   def _do_search(self):
     if self.has_bm25():
       sql, params = self.sql_request()
-      o_2_bm25 = {}
+      o_2_bm25 = {} # object to 'best matching 25' score ?
       for (o, bm25) in self.world.graph.execute(sql, params).fetchall():
         if o in o_2_bm25:
           o_2_bm25[o] = min(bm25, o_2_bm25[o])

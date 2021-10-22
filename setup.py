@@ -17,10 +17,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import os, os.path, sys, glob
+import os
+import os.path
+import sys
 
 # get a canonical representation of relative path of the directory of this file
-#HERE = os.path.relpath(os.path.dirname(os.path.abspath(sys.modules.get(__name__).__file__)))
+# HERE = os.path.relpath(os.path.dirname(os.path.abspath(sys.modules.get(__name__).__file__)))
 HERE = os.path.relpath(os.path.dirname(os.path.abspath(__file__)))
 
 if len(sys.argv) <= 1: sys.argv.append("install")
@@ -29,57 +31,61 @@ import setuptools
 
 version = open(os.path.join(HERE, "src/owlready2/__init__.py")).read().split('VERSION = "', 1)[1].split('"', 1)[0]
 
+
 def do_setup(extensions):
-  return setuptools.setup(
-  name         = "Owlready2",
-  version      = version,
-  license      = "LGPLv3+",
-  description  = "A package for ontology-oriented programming in Python: load OWL 2.0 ontologies as Python objects, modify them, save them, and perform reasoning via HermiT. Includes an optimized RDF quadstore.",
-  long_description = open(os.path.join(HERE, "README.rst")).read(),
-  
-  author       = "Lamy Jean-Baptiste (Jiba)",
-  author_email = "jibalamy@free.fr",
-  url          = "https://bitbucket.org/jibalamy/owlready2",
-  classifiers  = [
-    "Development Status :: 5 - Production/Stable",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Information Technology",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.6",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    ],
-  
-  package_dir  = {'' : 'src'},
-  packages     = ["owlready2", "owlready2.pymedtermino2", "owlready2.sparql"],
-  package_data = {"owlready2" : ["owlready_ontology.owl",
-                                 "src/owlready2/ontos/*.owl",
-                                 "src/owlready2/hermit/*.*",
-                                 "src/owlready2/hermit/org/semanticweb/HermiT/*",
-                                 "src/owlready2/hermit/org/semanticweb/HermiT/cli/*",
-                                 "src/owlready2/hermit/org/semanticweb/HermiT/hierarchy/*",
-                                 "src/owlready2/pellet/*.*",
-                                 "src/owlready2/pellet/org/mindswap/pellet/taxonomy/printer/*",
-                                ]},
-  ext_modules = extensions,
-)
+    return setuptools.setup(
+        name="Owlready2",
+        version=version,
+        license="LGPLv3+",
+        description="A package for ontology-oriented programming in Python: load OWL 2.0 ontologies as Python objects, modify them, save them, and perform reasoning via HermiT. Includes an optimized RDF quadstore.",
+        long_description=open(os.path.join(HERE, "README.rst")).read(),
+
+        author="Lamy Jean-Baptiste (Jiba)",
+        author_email="jibalamy@free.fr",
+        url="https://bitbucket.org/jibalamy/owlready2",
+        classifiers=[
+            "Development Status :: 5 - Production/Stable",
+            "Intended Audience :: Developers",
+            "Intended Audience :: Information Technology",
+            "Intended Audience :: Science/Research",
+            "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+            "Operating System :: OS Independent",
+            "Programming Language :: Python :: 3",
+            "Programming Language :: Python :: 3 :: Only",
+            "Programming Language :: Python :: 3.6",
+            "Programming Language :: Python :: 3.7",
+            "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: Implementation :: CPython",
+            "Programming Language :: Python :: Implementation :: PyPy",
+            "Topic :: Scientific/Engineering :: Artificial Intelligence",
+            "Topic :: Software Development :: Libraries :: Python Modules",
+        ],
+
+        package_dir={'': 'src'},
+        packages=["owlready2", "owlready2.pymedtermino2", "owlready2.sparql"],
+        package_data={"owlready2": ["owlready_ontology.owl",
+                                    "src/owlready2/ontos/*.owl",
+                                    "src/owlready2/hermit/*.*",
+                                    "src/owlready2/hermit/org/semanticweb/HermiT/*",
+                                    "src/owlready2/hermit/org/semanticweb/HermiT/cli/*",
+                                    "src/owlready2/hermit/org/semanticweb/HermiT/hierarchy/*",
+                                    "src/owlready2/pellet/*.*",
+                                    "src/owlready2/pellet/org/mindswap/pellet/taxonomy/printer/*",
+                                    ]},
+        ext_modules=extensions,
+        install_requires=['sparqlwrapper']
+    )
+
 
 try:
-  import Cython.Build
-  extensions = [
-    setuptools.Extension("owlready2_optimized", ["owlready2_optimized.pyx"]),
-  ]
-  extensions = Cython.Build.cythonize(extensions, compiler_directives = { "language_level" : 3 })
-  dist = do_setup(extensions)
-  
+    import Cython.Build
+
+    extensions = [
+        setuptools.Extension("owlready2_optimized", ["owlready2_optimized.pyx"]),
+    ]
+    extensions = Cython.Build.cythonize(extensions, compiler_directives={"language_level": 3})
+    dist = do_setup(extensions)
+
 except:
-  dist = do_setup([])
+    dist = do_setup([])
