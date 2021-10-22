@@ -877,7 +877,7 @@ class Ontology(Namespace, _GraphManager):
         self._add_obj_triple_spo(self.storid, rdf_type, owl_ontology)
 
     if not self.world._rdflib_store is None: self.world._rdflib_store._add_onto(self)
-if world.graph: world.graph.release_write_lock()
+    if world.graph: world.graph.release_write_lock()
     #if need_write: world.graph.release_write_lock()
 
   def destroy(self):

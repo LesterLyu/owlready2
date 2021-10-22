@@ -161,7 +161,8 @@ class Graph(BaseMainGraph):
     self.world             = world
     self.c                 = None
     self.nb_added_triples  = 0
-if read_only:
+
+    if read_only:
       self.lock     = multiprocessing.RLock()
       self.acquire_write_lock = self._acquire_write_lock_read_only
       self.release_write_lock = self._release_write_lock_read_only
@@ -434,7 +435,7 @@ if read_only:
     nb_objs  = self.execute("""SELECT MAX(rowid) FROM objs""" ).fetchone()[0] or 10
     #if nb_objs: print(nb_objs, time.perf_counter() - t0)
     #self.db.execute("""PRAGMA cache_size = -200000""")
-nb_iris  = self.execute("""SELECT MAX(storid) FROM resources""" ).fetchone()[0] or 300
+    nb_iris  = self.execute("""SELECT MAX(storid) FROM resources""" ).fetchone()[0] or 300
 
     #print("ANALYZE", nb_datas, nb_objs)
 
