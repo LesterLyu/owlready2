@@ -14,11 +14,13 @@ import re
 
 class SparqlGraph(BaseMainGraph):
     _SUPPORT_CLONING = True
+    total_sparql_time = 0
+    total_sparql_queries = 0
 
-    def __init__(self, endpoint: str, world=None, default_graph=None):
+    def __init__(self, endpoint: str, world=None, debug=False):
         self.endpoint = endpoint
         self.world = world
-        self.default_graph = default_graph
+        self.debug = debug
 
         self.client = SPARQLWrapper(endpoint, returnFormat=JSON)
         self.client.setMethod(POST)
@@ -31,9 +33,6 @@ class SparqlGraph(BaseMainGraph):
             # 0 is reserved for blank nodes in owlready2
         }
         self.graph_iri2c = {}
-        if default_graph:
-            self.c2ontology[1] = self.world.get_ontology(default_graph)
-            self.graph_iri2c[default_graph] = 1
 
         self.curr_blank = 0
         self.named_graph_iris = []
@@ -41,12 +40,20 @@ class SparqlGraph(BaseMainGraph):
         self.lock = multiprocessing.RLock()
         self.lock_level = 0
 
+    def __bool__(self):
+        # Reimplemented to avoid calling __len__ in this case
+        return True
+
+    def __len__(self):
+        raise NotImplementedError
+
     def execute(self, *query):
-        import inspect
-        print(f'Called from: {type(self).__name__}.{inspect.currentframe().f_back.f_code.co_name}(' + ', '.join(
-            inspect.currentframe().f_back.f_code.co_varnames) + ')')
         prev_time = time()
-        print(f"execute\n{';'.join(query)}")
+        if self.debug:
+            import inspect
+            print(f'Called from: {type(self).__name__}.{inspect.currentframe().f_back.f_code.co_name}(' + ', '.join(
+                inspect.currentframe().f_back.f_code.co_varnames) + ')')
+            print(f"execute\n{';'.join(query)}")
 
         # Check which client to use
         client = self.client if re.search('select[\w\W]+where[\w\W]+{[\w\W]+}',
@@ -55,7 +62,11 @@ class SparqlGraph(BaseMainGraph):
         client.setQuery(';'.join(query))
         try:
             result = client.query().convert()
-            print(f"took {round((time() - prev_time) * 1000)}ms")
+
+            SparqlGraph.total_sparql_time += time() - prev_time
+            SparqlGraph.total_sparql_queries += 1
+            if self.debug:
+                print(f"took {round((time() - prev_time) * 1000)}ms")
 
             # Post processing
             if client == self.client:
@@ -93,17 +104,12 @@ class SparqlGraph(BaseMainGraph):
     def has_write_lock(self):
         return self.lock_level
 
-    def parse(self, f):
-        raise NotImplementedError
-
-    def save(self, f, format="rdfxml", **kargs):
-        raise NotImplementedError
-
     def set_indexed(self, indexed):
-        raise NotImplementedError
+        pass
 
     def close(self):
-        raise NotImplementedError
+        # Don't do anything
+        pass
 
     def fix_base_iri(self, base_iri, c=None):
         if base_iri.endswith("#") or base_iri.endswith("/"):
@@ -112,7 +118,8 @@ class SparqlGraph(BaseMainGraph):
             raise ValueError("'base_iri' must end with '/' or '#'")
 
     def sub_graph(self, onto):
-        print("create new sub_graph with graph IRI " + onto.graph_iri)
+        if self.debug:
+            print("create new sub_graph with graph IRI " + onto.graph_iri)
         c = max([0, *[int(i) for i in self.c2ontology.keys()]]) + 1
         self.c2ontology[c] = onto
         self.graph_iri2c[onto.graph_iri] = c
@@ -120,7 +127,6 @@ class SparqlGraph(BaseMainGraph):
         if is_new:
             self.named_graph_iris.append(onto.graph_iri)
         return SparqlSubGraph(self, onto, c), is_new
-        # raise NotImplementedError
 
     def ontologies_iris(self):
         """
@@ -188,17 +194,24 @@ class SparqlGraph(BaseMainGraph):
         return storid
 
     def _unabbreviate(self, storid):
-        if storid < 0:
-            print(f'!!blank node {storid}')
+        if storid is not None and storid < 0:
+            if self.debug:
+                print(f'!!blank node {storid}')
             return storid
         iri = _universal_abbrev_2_iri.get(storid) or self.storid2iri.get(storid)
         return iri
 
     def _abbreviate_all(self, *iris):
-        return [self._abbreviate(iri) for iri in iris]
+        if len(iris) == 1:
+            return self._abbreviate(iris[0])
+        else:
+            return [self._abbreviate(iri) for iri in iris]
 
     def _unabbreviate_all(self, *storids):
-        return [self._unabbreviate(storid) for storid in storids]
+        if len(storids) == 1:
+            return self._unabbreviate(storids[0])
+        else:
+            return [self._unabbreviate(storid) for storid in storids]
 
     def new_blank_node(self):
         raise NotImplementedError
@@ -225,7 +238,6 @@ class SparqlGraph(BaseMainGraph):
             yield item["s"]["storid"], item["p"]["storid"], item["o"]["value"], d or item["o"].get("d")
 
     def _get_triples_spod_spod(self, s, p, o, d=None):
-        # should not raise NotImplementedError o
         if o:
             raise TypeError("'o' should always be None")
         s_iri, p_iri, d_iri = self._unabbreviate_all(s, p, d)
@@ -236,11 +248,17 @@ class SparqlGraph(BaseMainGraph):
 
         for item in result["results"]["bindings"]:
             yield item["s"]["storid"], item["p"]["storid"], \
-                  item["o"]["storid"] if item["o"]["type"] == 'uri' else item["o"]["value"], \
+                  item["o"].get("storid") or item["o"]["value"], \
                   d or item["o"].get("d")
 
     def _get_obj_triples_cspo_cspo(self, c, s, p, o):
-        raise NotImplementedError
+        s_iri, p_iri, o_iri = self._unabbreviate_all(s, p, o)
+        graph_iri = self.c2ontology[c].graph_iri
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, o_iri, is_obj=True, default_graph_iri=graph_iri)
+        result = self.execute(query)
+
+        for item in result["results"]["bindings"]:
+            yield c, item["s"]["storid"], item["p"]["storid"], item["o"]["storid"]
 
     def _get_obj_triples_sp_co(self, s, p):
         s_iri, p_iri = self._unabbreviate_all(s, p)
@@ -252,13 +270,43 @@ class SparqlGraph(BaseMainGraph):
             yield self.graph_iri2c[item["g"]["value"]], item["o"]["storid"]
 
     def _get_triples_s_p(self, s):
-        raise NotImplementedError
+        """DISTINCT"""
+        s_iri = self._unabbreviate(s)
+
+        query = QueryGenerator.generate_select_query(s_iri, distinct=True, is_data=True, is_obj=True,
+                                                     graph_iris=self.named_graph_iris)
+        result = self.execute(query)
+
+        # Remove duplicates
+        # TODO: Use DISTINCT on SPARQL level and only select '?p'
+        p_list = []
+        for item in result["results"]["bindings"]:
+            p_list.append(item["p"]["storid"])
+        return list(dict.fromkeys(p_list))
 
     def _get_obj_triples_o_p(self, o):
-        raise NotImplementedError
+        """DISTINCT"""
+        o_iri = self._unabbreviate(o)
+
+        query = QueryGenerator.generate_select_query(o=o_iri, distinct=True, is_obj=True,
+                                                     graph_iris=self.named_graph_iris)
+        result = self.execute(query)
+
+        # Remove duplicates
+        # TODO: Use DISTINCT on SPARQL level and only select '?p'
+        p_list = []
+        for item in result["results"]["bindings"]:
+            p_list.append(item["p"]["storid"])
+        return list(dict.fromkeys(p_list))
 
     def _get_obj_triples_s_po(self, s):
-        raise NotImplementedError
+        s_iri = self._unabbreviate(s)
+
+        query = QueryGenerator.generate_select_query(s_iri, is_obj=True, graph_iris=self.named_graph_iris)
+        result = self.execute(query)
+
+        for item in result["results"]["bindings"]:
+            yield item["p"]["storid"], item["o"]["storid"]
 
     def _get_obj_triples_sp_o(self, s, p):
         s_iri, p_iri = self._unabbreviate_all(s, p)
@@ -279,13 +327,35 @@ class SparqlGraph(BaseMainGraph):
             yield item["o"]["value"], item["o"].get("d")
 
     def _get_triples_sp_od(self, s, p):
-        raise NotImplementedError
+        s_iri, p_iri = self._unabbreviate_all(s, p)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri,
+                                                     is_data=True, is_obj=True, graph_iris=self.named_graph_iris)
+        result = self.execute(query)
+
+        for item in result["results"]["bindings"]:
+            yield item["o"].get("storid") or item["o"]["value"], \
+                  item["o"].get("d")
 
     def _get_data_triples_s_pod(self, s):
-        raise NotImplementedError
+        s_iri = self._unabbreviate(s)
+
+        query = QueryGenerator.generate_select_query(s_iri, is_data=True, graph_iris=self.named_graph_iris)
+        result = self.execute(query)
+
+        for item in result["results"]["bindings"]:
+            yield item["p"]["storid"], item["o"]["value"], item["o"].get("d")
 
     def _get_triples_s_pod(self, s):
-        raise NotImplementedError
+        s_iri = self._unabbreviate(s)
+
+        query = QueryGenerator.generate_select_query(s_iri, is_data=True, is_obj=True, graph_iris=self.named_graph_iris)
+        result = self.execute(query)
+
+        for item in result["results"]["bindings"]:
+            yield item["p"]["storid"], \
+                  item["o"].get("storid") or item["o"]["value"], \
+                  item["o"].get("d")
 
     def _get_obj_triples_po_s(self, p, o):
         p_iri, o_iri = self._unabbreviate_all(p, o)
@@ -303,21 +373,44 @@ class SparqlGraph(BaseMainGraph):
         raise NotImplementedError
 
     def _get_obj_triple_sp_o(self, s, p):
-        raise NotImplementedError
+        s_iri, p_iri = self._unabbreviate_all(s, p)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, limit=1, is_obj=True,
+                                                     graph_iris=self.named_graph_iris)
+        result = self.execute(query)
+        if len(result["results"]["bindings"]) > 0:
+            item = result["results"]["bindings"][0]
+            return item["o"]["storid"]
 
     def _get_triple_sp_od(self, s, p):
-        raise NotImplementedError
+        s_iri, p_iri = self._unabbreviate_all(s, p)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, limit=1, is_data=True, is_obj=True,
+                                                     graph_iris=self.named_graph_iris)
+        result = self.execute(query)
+        if len(result["results"]["bindings"]) > 0:
+            item = result["results"]["bindings"][0]
+            return item["o"].get("storid") or item["o"]["value"], item["o"].get("d")
 
     def _get_data_triple_sp_od(self, s, p):
         s_iri, p_iri = self._unabbreviate_all(s, p)
 
-        query = QueryGenerator.generate_select_query(s_iri, p_iri, limit=1, is_data=True, graph_iris=self.named_graph_iris)
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, limit=1, is_data=True,
+                                                     graph_iris=self.named_graph_iris)
         result = self.execute(query)
-        item = result["results"]["bindings"][0]
-        return item["o"]["value"], item["o"].get("d")
+        if len(result["results"]["bindings"]) > 0:
+            item = result["results"]["bindings"][0]
+            return item["o"]["value"], item["o"].get("d")
 
     def _get_obj_triple_po_s(self, p, o):
-        raise NotImplementedError
+        p_iri, o_iri = self._unabbreviate_all(p, o)
+
+        query = QueryGenerator.generate_select_query(None, p_iri, o_iri, limit=1, is_obj=True,
+                                                     graph_iris=self.named_graph_iris)
+        result = self.execute(query)
+        if len(result["results"]["bindings"]) > 0:
+            item = result["results"]["bindings"][0]
+            return item["s"]["storid"]
 
     def _has_obj_triple_spo(self, s=None, p=None, o=None):
         s_iri, p_iri, o_iri = self._unabbreviate_all(s, p, o)
@@ -343,20 +436,42 @@ class SparqlGraph(BaseMainGraph):
     def _del_data_triple_raw_spod(self, s, p, o, d):
         raise NotImplementedError
 
-    def __bool__(self):
-        # Reimplemented to avoid calling __len__ in this case
-        return True
-
-    def __len__(self):
-        raise NotImplementedError
-
     def _get_obj_triples_transitive_sp(self, s, p):
-        raise NotImplementedError
+        s_iri, p_iri = self._unabbreviate_all(s, p)
+        from_clauses = []
+        for graph_iri in self.named_graph_iris:
+            from_clauses.append(f"from named <{graph_iri}>")
+        newline = '\n\t\t\t\t'
+        query = f"""
+                    select ?s
+                    {newline.join(from_clauses)}
+                    where {{
+                        graph ?g {{<{s_iri}> <{p_iri}>+ ?o.}}
+                    }}
+                """
+        result = self.execute(query)
+        for item in result["results"]["bindings"]:
+            yield item["o"]["storid"]
 
     def _get_obj_triples_transitive_po(self, p, o):
-        raise NotImplementedError
+        p_iri, o_iri = self._unabbreviate_all(p, o)
+        from_clauses = []
+        for graph_iri in self.named_graph_iris:
+            from_clauses.append(f"from named <{graph_iri}>")
+        newline = '\n\t\t\t\t'
+        query = f"""
+            select ?s
+            {newline.join(from_clauses)}
+            where {{
+                graph ?g {{?s <{p_iri}>+ <{o_iri}>}}
+            }}
+        """
+        result = self.execute(query)
+        for item in result["results"]["bindings"]:
+            yield item["s"]["storid"]
 
     def restore_iri(self, storid, iri):
+        assert (storid > 0)
         self.storid2iri[storid] = iri
         self.iri2storid[iri] = storid
 
@@ -364,10 +479,32 @@ class SparqlGraph(BaseMainGraph):
         raise NotImplementedError
 
     def _iter_ontology_iri(self, c=None):
-        raise NotImplementedError
+        from_clauses = []
+        if c:
+            return self.c2ontology[c].base_iri
+        else:
+            for c in self.c2ontology:
+                yield c, self.c2ontology[c].base_iri
 
     def _iter_triples(self, quads=False, sort_by_s=False, c=None):
-        raise NotImplementedError
+        # TODO: Check is the order really matters?
+        if c:
+            query = QueryGenerator.generate_select_query(is_data=True, is_obj=True,
+                                                         default_graph_iri=self.c2ontology[c].graph_iri,
+                                                         order_by='asc(?s)' if sort_by_s else None)
+        else:
+            query = QueryGenerator.generate_select_query(is_data=True, is_obj=True, graph_iris=self.named_graph_iris,
+                                                         order_by='asc(?s)' if sort_by_s else None)
+        result = self.execute(query)
+
+        for item in result["results"]["bindings"]:
+            spod = [item["s"]["storid"], item["p"]["storid"],
+                    item["o"].get("storid") or item["o"]["value"],
+                    item["o"].get("d")]
+            if quads:
+                yield c if c else self._abbreviate(item["g"]["value"]), *spod
+            else:
+                yield spod
 
     def get_fts_prop_storid(self):
         raise NotImplementedError

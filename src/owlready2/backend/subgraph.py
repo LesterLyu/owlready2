@@ -20,9 +20,10 @@ class SparqlSubGraph(BaseSubGraph):
         self.graph_iri = onto.graph_iri
 
     def execute(self, *args, **kwargs):
-        import inspect
-        print(f'Called from: {type(self).__name__}.{inspect.currentframe().f_back.f_code.co_name}(' + ', '.join(
-            inspect.currentframe().f_back.f_code.co_varnames) + ')')
+        if self.parent.debug:
+            import inspect
+            print(f'Called from: {type(self).__name__}.{inspect.currentframe().f_back.f_code.co_name}(' + ', '.join(
+                inspect.currentframe().f_back.f_code.co_varnames) + ')')
         return self.parent.execute(*args, **kwargs)
 
     def _abbreviate(self, iri, create_if_missing=True):
@@ -120,16 +121,44 @@ class SparqlSubGraph(BaseSubGraph):
         return len(result["results"]["bindings"]) > 0
 
     def _has_data_triple_spod(self, s=None, p=None, o=None, d=None):
-        raise NotImplementedError
+        s_iri, p_iri, d_iri = self._unabbreviate_all(s, p, d)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, o, d_iri, is_data=True, limit=1,
+                                                     default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+        return len(result["results"]["bindings"]) > 0
 
     def _get_obj_triples_spo_spo(self, s=None, p=None, o=None):
-        raise NotImplementedError
+        s_iri, p_iri, o_iri = self._unabbreviate_all(s, p, o)
 
-    def _get_data_triples_spod_spod(self, s, p, o, d=""):
-        raise NotImplementedError
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, o_iri, is_obj=True, default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+        for item in result["results"]["bindings"]:
+            yield item["s"]["storid"], item["p"]["storid"], item["o"]["storid"]
+
+    def _get_data_triples_spod_spod(self, s, p, o, d=None):
+        s_iri, p_iri, d_iri = self._unabbreviate_all(s, p, d)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, o, d_iri, is_data=True,
+                                                     default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+        for item in result["results"]["bindings"]:
+            yield item["s"]["storid"], item["p"]["storid"], item["o"].get("storid") or item["o"]["value"],\
+                   d or item["o"]["d"]
 
     def _get_triples_spod_spod(self, s, p, o, d=""):
-        raise NotImplementedError
+        if o:
+            raise TypeError("'o' should always be None")
+        s_iri, p_iri, d_iri = self._unabbreviate_all(s, p, d)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, None, d_iri,
+                                                     is_data=True, is_obj=True, default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+
+        for item in result["results"]["bindings"]:
+            yield item["s"]["storid"], item["p"]["storid"], \
+                  item["o"].get("storid") or item["o"]["value"], \
+                  d or item["o"].get("d")
 
     def _get_obj_triples_s_po(self, s):
         s_iri = self._unabbreviate(s)
@@ -141,7 +170,13 @@ class SparqlSubGraph(BaseSubGraph):
             yield item["p"]["storid"], item["o"]["storid"]
 
     def _get_obj_triples_sp_o(self, s, p):
-        raise NotImplementedError
+        s_iri, p_iri = self._unabbreviate_all(s, p)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, is_obj=True, default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+
+        for item in result["results"]["bindings"]:
+            yield item["o"]["storid"]
 
     def _get_obj_triples_sp_co(self, s, p):
         s_iri, p_iri = self._unabbreviate_all(s, p)
@@ -153,7 +188,15 @@ class SparqlSubGraph(BaseSubGraph):
             yield self.c, item["o"]["storid"]
 
     def _get_triples_sp_od(self, s, p):
-        raise NotImplementedError
+        s_iri, p_iri = self._unabbreviate_all(s, p)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, is_data=True, is_obj=True,
+                                                     default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+
+        for item in result["results"]["bindings"]:
+            yield item["o"].get("storid") or item["o"]["value"], \
+                  item["o"].get("d")
 
     def _get_data_triples_sp_od(self, s, p):
         s_iri, p_iri = self._unabbreviate_all(s, p)
@@ -192,25 +235,77 @@ class SparqlSubGraph(BaseSubGraph):
         raise NotImplementedError
 
     def _get_obj_triple_sp_o(self, s, p):
-        raise NotImplementedError
+        s_iri, p_iri = self._unabbreviate_all(s, p)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, limit=1, is_obj=True, default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+        if len(result["results"]["bindings"]) > 0:
+            return result["results"]["bindings"][0]["o"]["storid"]
 
     def _get_triple_sp_od(self, s, p):
-        raise NotImplementedError
+        s_iri, p_iri = self._unabbreviate_all(s, p)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, limit=1,
+                                                     is_data=True, is_obj=True, default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+        if len(result["results"]["bindings"]) > 0:
+            item = result["results"]["bindings"][0]
+            return item["o"]["storid"] if item["o"].get("storid") else item["o"]["value"], item["o"].get("d")
 
     def _get_data_triple_sp_od(self, s, p):
-        raise NotImplementedError
+        s_iri, p_iri = self._unabbreviate_all(s, p)
+
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, limit=1, is_data=True,
+                                                     default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+        if len(result["results"]["bindings"]) > 0:
+            item = result["results"]["bindings"][0]
+            return item["o"]["value"], item["o"]["d"]
 
     def _get_obj_triple_po_s(self, p, o):
-        raise NotImplementedError
+        p_iri, o_iri = self._unabbreviate_all(p, o)
+
+        query = QueryGenerator.generate_select_query(None, p_iri, o_iri, limit=1, is_obj=True,
+                                                     default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+        if len(result["results"]["bindings"]) > 0:
+            return result["results"]["bindings"][0]["s"]["storid"]
 
     def _get_triples_s_p(self, s):
-        raise NotImplementedError
+        """DISTINCT"""
+        s_iri = self._unabbreviate_all(s)
+
+        query = QueryGenerator.generate_select_query(s_iri, distinct=True,
+                                                     is_data=True, is_obj=True, default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+
+        # Remove duplicates
+        # TODO: Use DISTINCT on SPARQL level and only select '?p'
+        p_list = []
+        for item in result["results"]["bindings"]:
+            p_list.append(item["p"]["storid"])
+        return list(dict.fromkeys(p_list))
 
     def _get_obj_triples_o_p(self, o):
-        raise NotImplementedError
+        """DISTINCT"""
+        o_iri = self._unabbreviate_all(o)
+
+        query = QueryGenerator.generate_select_query(o=o_iri, distinct=True, is_obj=True,
+                                                     default_graph_iri=self.graph_iri)
+        result = self.execute(query)
+
+        # Remove duplicates
+        # TODO: Use DISTINCT on SPARQL level and only select '?p'
+        p_list = []
+        for item in result["results"]["bindings"]:
+            p_list.append(item["p"]["storid"])
+        return list(dict.fromkeys(p_list))
 
     def _get_obj_triples_cspo_cspo(self, c, s, p, o):
-        raise NotImplementedError
+        return [(self.c, s, p, o) for (s, p, o) in self._get_obj_triples_spo_spo(s, p, o)]
+
+    def _iter_ontology_iri(self, c=None):
+        return self.parent._iter_ontology_iri(c)
 
     def __len__(self):
         raise NotImplementedError
