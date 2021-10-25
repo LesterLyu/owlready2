@@ -63,7 +63,7 @@ def do_setup(extensions):
         ],
 
         package_dir={'': 'src'},
-        packages=["owlready2", "owlready2.pymedtermino2", "owlready2.sparql"],
+        packages=["owlready2", "owlready2.pymedtermino2", "owlready2.sparql", "owlready2.backend"],
         package_data={"owlready2": ["owlready_ontology.owl",
                                     "src/owlready2/ontos/*.owl",
                                     "src/owlready2/hermit/*.*",
