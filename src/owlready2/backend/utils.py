@@ -97,10 +97,11 @@ class QueryGenerator:
             raise NotImplemented(f"Unknown SPARQL datatype: {datatype}")
 
     @staticmethod
-    def generate_select_query(s=None, p=None, o=None, d=None, sid=None, oid=None, is_obj=False, is_data=False, distinct=False,
-                              graph_iris=None, default_graph_iri=None, limit=None):
+    def generate_select_query(s=None, p=None, o=None, d=None, sid=None, oid=None, is_obj=False, is_data=False,
+                              distinct=False, graph_iris=None, default_graph_iri=None, limit=None, order_by=None):
         """
         Designed for GraphDB only.
+        Uses http://www.ontotext.com/owlim/entity#id to get internal ID for entities in subject/object.
         """
         if not is_obj and not is_data:
             raise TypeError("'is_obj' and 'is_data' cannot be both False")
@@ -115,7 +116,7 @@ class QueryGenerator:
 
         if s and isinstance(s, str):
             binds.append(f'bind(<{s}> as ?s)')
-        if p and isinstance(s, str):
+        if p and isinstance(p, str):
             binds.append(f'bind(<{p}> as ?p)')
 
         if sid or (isinstance(s, int) and s < 0):
@@ -173,7 +174,7 @@ class QueryGenerator:
                 ?s ent:id ?sid.
                 ?o ent:id ?oid.
                 {newline.join(filters)}
-            }}{f' limit {limit}' if limit else ''}
+            }}{f'order by {order_by} ' if order_by else ''}{f' limit {limit}' if limit else ''}
         """
         return query
 
@@ -207,20 +208,26 @@ class QueryGenerator:
         return query
 
     @staticmethod
-    def generate_delete_query(s=None, p=None, o=None, default_graph_iri=None):
+    def generate_delete_query(s=None, p=None, o=None, d=None, is_data=False, default_graph_iri=None):
         """
         Generate SPARQL delete query.
         'o' could be literal or URI, and should be serialized before invoke this method.
         """
-        subject = '?s' if s is None else s
-        predicate = '?p' if p is None else p
-        object = '?o' if o is None else o
+        subject = '?s' if s is None else f'<{s}>'
+        predicate = '?p' if p is None else f'<{p}>'
+        object = '?o'
+
+        # 'o' is a literal if 'd' is provided
+        if d or is_data:
+            object = QueryGenerator.serialize_to_sparql_type_with_datetype(o, d)
+        elif o:
+            object = f'<{o}>'
 
         if default_graph_iri:
             query = f"""
                 delete where {{
                     graph <{default_graph_iri}> {{
-                        <{subject}> <{predicate}> <{object}>.
+                        {subject} {predicate} {object}.
                     }}
                 }}
             """
