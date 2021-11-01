@@ -351,6 +351,10 @@ WHERE q1.p=? AND q1.o=?
         if sub is None: yield self._parse_bnode(s)
 
   def search(self, _use_str_as_loc_str = True, _case_sensitive = True, _bm25 = False, **kargs):
+    if self.backend == 'sparql-endpoint':
+      from owlready2.backend import SparqlSearch
+      return SparqlSearch.search(self.world, _use_str_as_loc_str = True, _case_sensitive = True, _bm25 = False, **kargs)
+
     from owlready2.triplelite import _SearchList, _SearchMixin
 
     prop_vals = []
@@ -827,6 +831,8 @@ class World(_GraphManager):
     return entity
 
   def _parse_bnode(self, bnode):
+    if self.backend == 'sparql-endpoint':
+      raise NotImplementedError
     c = self.graph.db.execute("""SELECT c FROM objs WHERE s=? LIMIT 1""", (bnode,)).fetchone()
     if c:
       c = c[0]
