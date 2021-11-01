@@ -10,6 +10,7 @@ from .subgraph import SparqlSubGraph
 from time import time
 import multiprocessing
 import re
+from uuid import uuid4
 
 
 class SparqlGraph(BaseMainGraph):
@@ -33,8 +34,6 @@ class SparqlGraph(BaseMainGraph):
             # 0 is reserved for blank nodes in owlready2
         }
         self.graph_iri2c = {}
-
-        self.curr_blank = 0
         self.named_graph_iris = []
 
         self.lock = multiprocessing.RLock()
@@ -198,6 +197,9 @@ class SparqlGraph(BaseMainGraph):
             if self.debug:
                 print(f'!!blank node {storid}')
             return storid
+        if isinstance(storid, str) and storid.startswith("@"):
+            return storid
+
         iri = _universal_abbrev_2_iri.get(storid) or self.storid2iri.get(storid)
         return iri
 
@@ -214,10 +216,37 @@ class SparqlGraph(BaseMainGraph):
             return [self._unabbreviate(storid) for storid in storids]
 
     def new_blank_node(self):
-        raise NotImplementedError
-        self.curr_blank -= 1
-        print(f'create a new blank node with id {self.curr_blank}')
-        return self.curr_blank
+        # Insert a blank node with a newly generated uuid
+        uuid = uuid4()
+        self.execute(f"""
+        PREFIX or2: <http://owlready2/internal#>
+        insert data {{
+            [or2:uuid "{uuid}"].
+        }}
+        """)
+
+        # Get the blank node ent:id
+        result = self.execute(f"""
+        PREFIX or2: <http://owlready2/internal#>
+        PREFIX ent: <http://www.ontotext.com/owlim/entity#>
+        select ?id where {{
+            ?s or2:uuid "{uuid}".
+            ?s ent:id ?id.
+        }}
+        """)
+        bnode_id = -(int(result["results"]["bindings"][0]["id"]["value"]))
+
+        # Delete the UUID triple
+        result = self.execute(f"""
+        PREFIX or2: <http://owlready2/internal#>
+        PREFIX ent: <http://www.ontotext.com/owlim/entity#>
+        delete where {{
+            ?s or2:uuid "{uuid}".
+        }}
+        """)
+
+        print(f'create a new blank node with id {bnode_id}')
+        return bnode_id
 
     def _get_obj_triples_spo_spo(self, s, p, o):
         s_iri, p_iri, o_iri = self._unabbreviate_all(s, p, o)
