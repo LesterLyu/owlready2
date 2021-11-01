@@ -1,7 +1,6 @@
 from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from owlready2.base import *
 from owlready2.driver import BaseMainGraph, BaseSubGraph
-from owlready2.driver import _guess_format, _save
 from owlready2.util import FTS, _LazyListMixin
 from owlready2.base import _universal_abbrev_2_iri, _universal_iri_2_abbrev, _next_abb
 
@@ -49,15 +48,96 @@ class SparqlSubGraph(BaseSubGraph):
 
     def create_parse_func(self, filename=None, delete_existing_triples=True,
                           datatype_attr="http://www.w3.org/1999/02/22-rdf-syntax-ns#datatype"):
-        raise NotImplementedError
+        objs = []
+        datas = []
+
+        if delete_existing_triples:
+            # Delete the whole named graph!
+            self.execute(f"DROP GRAPH <{self.graph_iri}>")
+
+        def _abbreviate(iri):
+            return self._abbreviate(iri)
+
+        def insert_objs():
+            triples = []
+            for spo in objs:
+                s, p, o = self._unabbreviate_all(*spo)
+                triples.append(f'<{s}> <{p}> <{o}>.')
+
+            newline = '\n\t\t\t\t'
+            self.execute(f"""
+                insert data {{
+                    graph <{self.graph_iri}> {{ {newline.join(triples)} }}
+                }}
+            """)
+            objs.clear()
+
+        def insert_datas():
+            triples = []
+            for spod in datas:
+                o = spod[2]
+                s, p, d = self._unabbreviate_all(spod[0], spod[1], spod[3])
+                triples.append(f'<{s}> <{p}> {QueryGenerator.serialize_to_sparql_type_with_datetype(o, d)}.')
+
+            newline = '\n\t\t\t\t'
+            self.execute(f"""
+                insert data {{
+                    graph <{self.graph_iri}> {{ {newline.join(triples)} }}
+                }}
+            """)
+            datas.clear()
+
+        # TODO: Improve performance: Do we really need to abbreviate IRIs?
+        def on_prepare_obj(s, p, o):
+            if isinstance(s, str):
+                s = _abbreviate(s)
+            if isinstance(o, str):
+                o = _abbreviate(o)
+            objs.append((s, _abbreviate(p), o))
+            if len(objs) > 1000:
+                insert_objs()
+
+        def on_prepare_data(s, p, o, d):
+            if isinstance(s, str):
+                s = _abbreviate(s)
+            if d and (not d.startswith("@")):
+                d = _abbreviate(d)
+            datas.append((s, _abbreviate(p), o, d))
+            if len(datas) > 1000:
+                insert_datas()
+
+        def on_finish():
+            if filename:
+                date = os.path.getmtime(filename)
+            else:
+                date = time()
+
+            insert_objs()
+            insert_datas()
+
+            # TODO: Get base IRI
+            # There might be several owl:Ontology in the named graph
+            # Match a correct one
+
+            # TODO: Set last update time
+            return self.graph_iri
+
+        return objs, datas, on_prepare_obj, on_prepare_data, insert_objs, insert_datas, self.parent.new_blank_node, \
+               _abbreviate, on_finish
 
     def context_2_user_context(self, c):
         return self.parent.context_2_user_context(c)
 
     def add_ontology_alias(self, iri, alias):
+        # TODO
+        # This is invoked when the imported Ontology changes base_iri
+        # Set an IRI alias that points to the same Ontology base_iri
         raise NotImplementedError
 
     def get_last_update_time(self):
+        """
+        Return 0 if never loaded. Otherwise return the last update time.
+        """
         # TODO
         return 0
 
@@ -143,8 +223,8 @@ class SparqlSubGraph(BaseSubGraph):
                                                      default_graph_iri=self.graph_iri)
         result = self.execute(query)
         for item in result["results"]["bindings"]:
-            yield item["s"]["storid"], item["p"]["storid"], item["o"].get("storid") or item["o"]["value"],\
-                   d or item["o"]["d"]
+            yield item["s"]["storid"], item["p"]["storid"], item["o"].get("storid") or item["o"]["value"], \
+                  d or item["o"]["d"]
 
     def _get_triples_spod_spod(self, s, p, o, d=""):
         if o:
@@ -237,7 +317,8 @@ class SparqlSubGraph(BaseSubGraph):
     def _get_obj_triple_sp_o(self, s, p):
         s_iri, p_iri = self._unabbreviate_all(s, p)
 
-        query = QueryGenerator.generate_select_query(s_iri, p_iri, limit=1, is_obj=True, default_graph_iri=self.graph_iri)
+        query = QueryGenerator.generate_select_query(s_iri, p_iri, limit=1, is_obj=True,
+                                                     default_graph_iri=self.graph_iri)
         result = self.execute(query)
         if len(result["results"]["bindings"]) > 0:
             return result["results"]["bindings"][0]["o"]["storid"]
