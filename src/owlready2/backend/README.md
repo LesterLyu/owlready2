@@ -38,4 +38,4 @@
 - Performance
   - Performance is maximized when the owlready2 and GraphDB are located in the same network.
 (localhost or connected through ethernet with low latency and high throughput.)
-  - It could be extremely slow on WIFI. (GraphDB is a server and Owlready2 runs on some laptop.)
+  - It could be extremely slow on WIFI. (GraphDB is on a remote server and Owlready2 runs on a laptop connected to WIFI.)
