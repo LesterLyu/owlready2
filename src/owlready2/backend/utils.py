@@ -1,4 +1,5 @@
 from datetime import date, time, datetime
+import sys
 
 SPARQL_INT_TYPES = ["http://www.w3.org/2001/XMLSchema#integer", "http://www.w3.org/2001/XMLSchema#byte",
                     "http://www.w3.org/2001/XMLSchema#short", "http://www.w3.org/2001/XMLSchema#int",
@@ -64,6 +65,8 @@ class QueryGenerator:
             return True if value == 'true' else False
         elif datatype in SPARQL_STR_TYPES:
             return f'"{value}"'
+        elif datatype.startswith("@"):
+            return f'"{value}"{datatype}'
         else:
             raise TypeError(f"Unknown SPARQL type {datatype}")
 
