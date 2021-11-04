@@ -180,19 +180,16 @@ class SparqlGraph(BaseMainGraph):
         Return all ontology/Named Graph IRIs.
         """
         result = self.execute("""
-        SELECT DISTINCT ?g
-        WHERE {
-            GRAPH ?g { ?s ?p ?s }
-        }
+            PREFIX or2: <http://owlready2/internal#>
+            select ?iri ?graph from <http://owlready2/internal> where { 
+                [or2:alias ?alias;
+                    or2:iri ?iri;
+                    or2:graph ?graph]
+            }
         """)
         iris = []
         for item in result["results"]["bindings"]:
-            iris.append(item["g"]["value"])
-
-        # Update self.named_graph_iris
-        for iri in iris:
-            if iri not in self.named_graph_iris:
-                self.named_graph_iris.append(iri)
+            iris.append(item["iri"]["value"])
         return iris
 
     def _new_numbered_iri(self, prefix):
