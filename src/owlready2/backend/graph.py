@@ -39,6 +39,13 @@ class SparqlGraph(BaseMainGraph):
         self.lock = multiprocessing.RLock()
         self.lock_level = 0
 
+        if self.world:
+            self.world._abbreviate = self._abbreviate
+            self.world._unabbreviate = self._unabbreviate
+
+        # Some magic variable to mark the db is initialized.
+        self.indexed = True
+
     def __bool__(self):
         # Reimplemented to avoid calling __len__ in this case
         return True
