@@ -210,20 +210,23 @@ class SparqlGraph(BaseMainGraph):
         return self.c2ontology[c]
 
     def _abbreviate(self, iri, create_if_missing=True):
+        # Try get it from a global dict
         storid = _universal_iri_2_abbrev.get(iri) or self.iri2storid.get(iri)
 
         # Check graph, if exists in graph, create one storid regardless of 'create_if_missing'
+        from_clause = '\n\t\t\t\t'.join([f'from named <{graph_iri}>' for graph_iri in self.named_graph_iris])
         if storid is None and not create_if_missing:
             result = self.execute(f"""
-                select distinct ?uri
-                from <http://ontology.eil.utoronto.ca/cids/cids>
+                select distinct ?uri {from_clause}
                 where {{
                     bind(<{iri}> as ?uri)
-                    {{?uri ?p ?o.}}
-                    union
-                    {{?s ?uri ?o}}
-                    union
-                    {{?s ?p ?uri}}
+                    graph ?g {{
+                        {{?uri ?p ?o.}}
+                        union
+                        {{?s ?uri ?o}}
+                        union
+                        {{?s ?p ?uri}}
+                    }}
                 }}
             """)
             if len(result["results"]["bindings"]) > 0:
@@ -238,6 +241,10 @@ class SparqlGraph(BaseMainGraph):
         return storid
 
     def _unabbreviate(self, storid):
+        # Skip language tag
+        if isinstance(storid, str) and storid.startswith('@'):
+            return storid
+
         if storid is not None and storid < 0:
             if self.debug:
                 print(f'!!blank node {storid}')
