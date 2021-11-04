@@ -1,5 +1,7 @@
 from datetime import date, time, datetime
 import sys
+import json
+import re
 
 SPARQL_INT_TYPES = ["http://www.w3.org/2001/XMLSchema#integer", "http://www.w3.org/2001/XMLSchema#byte",
                     "http://www.w3.org/2001/XMLSchema#short", "http://www.w3.org/2001/XMLSchema#int",
@@ -29,7 +31,7 @@ class QueryGenerator:
         elif isinstance(value, float):
             return f'{value}'
         elif isinstance(value, bool):
-            return 'true' if value else 'false'
+            return 'true' if value is True or value == 'true' else 'false'
         # ISO 8601
         elif isinstance(value, datetime):
             return f'"{value.isoformat()}"^^xsd:dateTime'
@@ -62,11 +64,15 @@ class QueryGenerator:
         elif datatype in SPARQL_FLOAT_TYPES:
             return float(value)
         elif datatype in SPARQL_BOOL_TYPES:
-            return True if value == 'true' else False
-        elif datatype in SPARQL_STR_TYPES:
-            return f'"{value}"'
+            return 'true' if value is True or value == 'true' else 'false'
+        elif datatype in SPARQL_STR_TYPES or datatype is None:  # Default to string
+            return json.dumps(value)
         elif datatype.startswith("@"):
-            return f'"{value}"{datatype}'
+            match = re.match(r'[a-zA-Z]+(-[a-zA-Z0-9]+)*', datatype[1:])
+            if match is None or match.group(0) != datatype[1:]:
+                print(f"Illegal language tag: {datatype}, ignored (language tag removed)", file=sys.stderr)
+                return json.dumps(value)
+            return f'{json.dumps(value)}{datatype}'
         else:
             raise TypeError(f"Unknown SPARQL type {datatype}")
 
@@ -182,16 +188,19 @@ class QueryGenerator:
         return query
 
     @staticmethod
-    def generate_insert_query(s, p, o, d=None, is_data=False, default_graph_iri=None):
+    def generate_insert_query(s, p, o, d=None, is_data=False, default_graph_iri=None, sid=None, oid=None):
         """
         Generate SPARQL insert query.
         'o' could be literal or URI.
         """
         # 'o' is a literal if 'd' is provided
-        if d:
+        if d or d == '':
             is_data = True
         if is_data and d is None:
             d = SPARQL_STR_TYPES[0]
+
+        # TODO: Treat blank nodes, s and o can be negative integer
+
 
         if default_graph_iri:
             query = f"""
