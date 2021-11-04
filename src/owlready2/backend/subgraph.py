@@ -125,6 +125,16 @@ class SparqlSubGraph(BaseSubGraph):
         return objs, datas, on_prepare_obj, on_prepare_data, insert_objs, insert_datas, self.parent.new_blank_node, \
                _abbreviate, on_finish
 
+    def update_graph_iri(self, new_graph_iri):
+        """Rename graph"""
+        self.execute(f'MOVE <{self.graph_iri}> TO <{new_graph_iri}>', method='update')
+        del self.parent.graph_iri2c[self.graph_iri]
+        self.parent.graph_iri2c[new_graph_iri] = self.c
+        self.parent.named_graph_iris.remove(self.graph_iri)
+
+        self.graph_iri = new_graph_iri
+        self.parent.named_graph_iris.append(new_graph_iri)
+
     def context_2_user_context(self, c):
         return self.parent.context_2_user_context(c)
 

@@ -564,9 +564,6 @@ class World(_GraphManager):
     return self._prepare_sparql(sparql, error_on_undefined_entities)
 
   def get_ontology(self, base_iri, OntologyClass = None, graph_iri=None):
-    if self.backend == 'sparql-endpoint' and graph_iri is None and base_iri != 'http://anonymous/':
-      raise TypeError("graph_iri is required when use sparql-endpoint backend.")
-
     if (not base_iri.endswith("/")) and (not base_iri.endswith("#")):
       if   ("%s/" % base_iri) in PREDEFINED_ONTOLOGIES: base_iri = base_iri = "%s/" % base_iri
       elif ("%s#" % base_iri) in self.ontologies:       base_iri = base_iri = "%s#" % base_iri
@@ -846,6 +843,10 @@ class Ontology(Namespace, _GraphManager):
     if world.graph: world.graph.acquire_write_lock()
 
     self.graph_iri = graph_iri or base_iri
+    # Normally graph IRI does not contain '/' or '#' in the end.
+    if self.graph_iri.endswith('/') or self.graph_iri.endswith('#'):
+      self.graph_iri = self.graph_iri[:-1]
+
     self.world       = world # Those 2 attributes are required before calling Namespace.__init__
     self._namespaces = weakref.WeakValueDictionary()
     Namespace.__init__(self, self, base_iri, name)
@@ -980,6 +981,9 @@ class Ontology(Namespace, _GraphManager):
     self.loaded = True
 
     if new_base_iri and (new_base_iri != self.base_iri):
+      self.graph_iri = new_base_iri[:-1]
+      if getattr(self.graph, 'update_graph_iri', None):
+        self.graph.update_graph_iri(self.graph_iri)
       self.graph.add_ontology_alias(new_base_iri, self.base_iri)
       self.base_iri = new_base_iri
       self._namespaces[self.base_iri] = self.world.ontologies[self.base_iri] = self
