@@ -524,7 +524,7 @@ class SparqlGraph(BaseMainGraph):
             from_clauses.append(f"from named <{graph_iri}>")
         newline = '\n\t\t\t\t'
         query = f"""
-                    select ?s
+                    select ?o
                     {newline.join(from_clauses)}
                     where {{
                         graph ?g {{<{s_iri}> <{p_iri}>+ ?o.}}
