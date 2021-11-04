@@ -40,6 +40,35 @@ class SparqlSubGraph(BaseSubGraph):
     def _iter_triples(self, quads=False, sort_by_s=False):
         return self.parent._iter_triples(quads, sort_by_s, self.c)
 
+    def fix_base_iri(self, base_iri):
+        """
+        Make sure the base_iri ends with a '/' or a '#'.
+        """
+        if base_iri.endswith("#") or base_iri.endswith("/"):
+            return base_iri
+
+        # Find all namespaces in all graphs and figures out whether to use '#' or '/'
+        result = self.execute(f"""
+            select distinct ?ns from <{self.graph_iri}> where {{
+                {{
+                    [] ?p [] .
+                    bind( replace( str(?p), "(#|/)[^#/]*$", "$1" ) as ?ns )
+                }}
+                union
+                {{
+                    ?s ?p2 [] .
+                    bind( replace( str(?s), "(#|/)[^#/]*$", "$1" ) as ?ns )
+                }}
+                filter(contains(?ns, "{base_iri}"))
+            }}
+        """)
+        items = result['results']['bindings']
+        if len(items) > 0:
+            return items[0]['ns']['value']
+        else:
+            # Default to use '#'
+            return "%s#" % base_iri
+
     def create_parse_func(self, filename=None, delete_existing_triples=True,
                           datatype_attr="http://www.w3.org/1999/02/22-rdf-syntax-ns#datatype"):
         objs = []
