@@ -869,7 +869,9 @@ class Ontology(Namespace, _GraphManager):
       self.graph, new_in_quadstore = world.graph.sub_graph(self)
       for method in self.graph.__class__.BASE_METHODS + self.graph.__class__.ONTO_METHODS:
         setattr(self, method, getattr(self.graph, method))
-      if not new_in_quadstore:
+
+      # Do not load everything if using sparql-endpoint backend, it is slow!
+      if not new_in_quadstore and self.world.backend != 'sparql-endpoint':
         self._load_properties()
 
     world.ontologies[self.base_iri] = self
