@@ -73,19 +73,39 @@ class SparqlSubGraph(BaseSubGraph):
                           datatype_attr="http://www.w3.org/1999/02/22-rdf-syntax-ns#datatype"):
         objs = []
         datas = []
+        bnode_i = 0
 
         if delete_existing_triples:
             # Delete the whole named graph!
-            self.execute(f"DROP GRAPH <{self.graph_iri}>")
+            self.execute(f"DROP GRAPH <{self.graph_iri}>", method='update')
+
+        def new_blank_node():
+            """Generate blank node storid (< 0)"""
+            nonlocal bnode_i
+            bnode_i -= 1
+            return bnode_i
 
         def _abbreviate(iri):
             return self._abbreviate(iri)
 
+        def _unabbreviate_all(*storids):
+            for storid in storids:
+                # Special case only happens here
+                if storid == '':
+                    storid = None
+                if isinstance(storid, int) and storid < 0:
+                    yield f'_:bnode{storid}'
+                else:
+                    yield self._unabbreviate(storid)
+
         def insert_objs():
             triples = []
             for spo in objs:
-                s, p, o = self._unabbreviate_all(*spo)
-                triples.append(f'<{s}> <{p}> <{o}>.')
+                s, p, o = _unabbreviate_all(*spo)
+                # s and o can be blank nodes
+                s_repr = s if s.startswith('_') else f'<{s}>'
+                o_repr = o if o.startswith('_') else f'<{o}>'
+                triples.append(f'{s_repr} <{p}> {o_repr}.')
 
             newline = '\n\t\t\t\t'
             self.execute(f"""
@@ -99,8 +119,10 @@ class SparqlSubGraph(BaseSubGraph):
             triples = []
             for spod in datas:
                 o = spod[2]
-                s, p, d = self._unabbreviate_all(spod[0], spod[1], spod[3])
-                triples.append(f'<{s}> <{p}> {QueryGenerator.serialize_to_sparql_type_with_datetype(o, d)}.')
+                s, p, d = _unabbreviate_all(spod[0], spod[1], spod[3])
+                # s and o can be blank nodes
+                s_repr = s if s.startswith('_') else f'<{s}>'
+                triples.append(f'{s_repr} <{p}> {QueryGenerator.serialize_to_sparql_type_with_datetype(o, d)}.')
 
             newline = '\n\t\t\t\t'
             self.execute(f"""
@@ -138,14 +160,43 @@ class SparqlSubGraph(BaseSubGraph):
             insert_objs()
             insert_datas()
 
-            # TODO: Get base IRI
-            # There might be several owl:Ontology in the named graph
-            # Match a correct one
+            # Get Ontology base_iri
+            # There might be several owl:Ontology in the named graph, pick the first one
+            result = self.execute(f"""
+                PREFIX owl: <http://www.w3.org/2002/07/owl#>
+                PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+                select ?s from <{self.graph_iri}>
+                where {{
+                    ?s rdf:type owl:Ontology.
+                }}
+            """)
+            items = result['results']['bindings']
+            onto_base_iri = None
+            if len(items) > 0:
+                onto_base_iri = items[0]["s"]["value"]
 
-            # TODO: Set last update time
-            return self.graph_iri
+            if not onto_base_iri.endswith("/"):
+                onto_base_iri = self.fix_base_iri(onto_base_iri)
 
-        return objs, datas, on_prepare_obj, on_prepare_data, insert_objs, insert_datas, self.parent.new_blank_node, \
+            # Set last update time
+            self.execute(f"""
+                PREFIX or2: <http://owlready2/internal#>
+                delete where {{
+                     graph <http://owlready2/internal> {{
+                        ?s or2:lastUpdate ?o; 
+                           or2:iri "{onto_base_iri}"
+                    }}
+                }};
+                insert data {{
+                    graph <http://owlready2/internal> {{
+                        [or2:lastUpdate {date}; or2:iri "{onto_base_iri}"]
+                    }}
+                }}
+            """, method='update')
+
+            return onto_base_iri
+
+        return objs, datas, on_prepare_obj, on_prepare_data, insert_objs, insert_datas, new_blank_node, \
                _abbreviate, on_finish
 
     def update_graph_iri(self, new_graph_iri):
