@@ -1,11 +1,12 @@
 ## Sparql-endpoint Backend
 ### TODO
 - [x] Implement blank node creation.
-- [ ] Implement Loading.
+- [x] Implement ontology file loading/import into the database.
   - [x] Store triples
-  - [ ] Store last update time.
-  - [ ] Implement `ontology_alias` for different `base_iri` point to the same Ontology. (i.e. Ontology changes `base_iri`)
-  - [ ] Figure out 
+  - [x] Store and get last update time.
+  - [x] Figure out the base_iri for the imported Ontology and 
+  - [x] Implement `ontology_alias` for different paths point to the same Ontology. (i.e. import url/file path changes)
+- [x] Make kwarg `graph_iri` optional in `load_ontology()`
 - [ ] Implement search.
   - [ ] Nested search
     - [ ] union of the search result.
@@ -18,7 +19,7 @@
   - [ ] any object, data or annotation property name
 - [ ] Use remote SPARQL engine to perform customized SPARQL query.
 - [ ] Implement `SparqlGraph._new_numbered_iri(self, ...)` to generate IRI for newly created individual.
-- [ ] Store modified/update time for Ontology in the graph.
+- [x] Store modified/update time for Ontology in an internal graph (http://owlready2/internal).
 
 
 ### Limitations
