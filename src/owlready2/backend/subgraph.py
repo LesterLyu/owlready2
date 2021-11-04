@@ -213,21 +213,61 @@ class SparqlSubGraph(BaseSubGraph):
         return self.parent.context_2_user_context(c)
 
     def add_ontology_alias(self, iri, alias):
-        # TODO
-        # This is invoked when the imported Ontology changes base_iri
-        # Set an IRI alias that points to the same Ontology base_iri
-        raise NotImplementedError
+        # This is invoked when the imported Ontology url/file path changes.
+        # OR the base_iri differs from the url/file path.
+        self.execute(f"""
+            PREFIX or2: <http://owlready2/internal#>
+            delete where {{
+                 graph <http://owlready2/internal> {{
+                    ?s or2:alias "{alias}"; 
+                       or2:iri "{iri}";
+                       or2:graph "{self.graph_iri}". 
+                }}
+            }};
+            insert data {{
+                graph <http://owlready2/internal> {{
+                    [or2:alias "{alias}"; or2:iri "{iri}"; or2:graph "{self.graph_iri}"]
+                }}
+            }}
+        """, method='update')
 
     def get_last_update_time(self):
         """
         Return 0 if never loaded. Otherwise return the last update time.
+        Also check for alias.
         """
-        # TODO
-        return 0
+        result = self.execute(f"""
+            PREFIX or2: <http://owlready2/internal#>
+            select * from <http://owlready2/internal> where {{
+                {{
+                    [or2:alias "{self.onto.base_iri}"; or2:iri ?iri].
+                    [or2:lastUpdate ?update;  or2:iri ?iri]
+                }} union {{
+                     [or2:lastUpdate ?update;  or2:iri "{self.onto.base_iri}"]
+                }}
+            }}
+        """)
+        items = result['results']['bindings']
+        if len(items) > 0:
+            return float(items[0]["update"]["value"])
+        else:
+            return 0
 
     def set_last_update_time(self, t):
-        # TODO
-        pass
+        self.execute(f"""
+           PREFIX or2: <http://owlready2/internal#>
+           delete where {{
+                graph <http://owlready2/internal> {{
+                   ?s or2:lastUpdate ?o; 
+                      or2:iri "{self.onto.base_iri}"
+               }}
+           }};
+           insert data {{
+               graph <http://owlready2/internal> {{
+                   [or2:lastUpdate {t}; or2:iri "{self.onto.base_iri}"]
+               }}
+           }}
+       """, method='update')
 
     def destroy(self):
         raise NotImplementedError
