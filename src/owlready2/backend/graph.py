@@ -17,6 +17,7 @@ class SparqlGraph(BaseMainGraph):
     _SUPPORT_CLONING = True
     total_sparql_time = 0
     total_sparql_queries = 0
+    function_times = {}
 
     def __init__(self, endpoint: str, world=None, debug=False):
         self.endpoint = endpoint
@@ -57,7 +58,7 @@ class SparqlGraph(BaseMainGraph):
         prev_time = time()
         if self.debug:
             import inspect
-            print(f'Called from: {type(self).__name__}.{inspect.currentframe().f_back.f_code.co_name}(' + ', '.join(
+            print(f'Called from: {type(inspect.currentframe().f_back.f_locals["self"]).__name__}.{inspect.currentframe().f_back.f_code.co_name}(' + ', '.join(
                 inspect.currentframe().f_back.f_code.co_varnames) + ')')
             print(f"execute\n{';'.join(query)}")
 
@@ -72,7 +73,13 @@ class SparqlGraph(BaseMainGraph):
             SparqlGraph.total_sparql_time += time() - prev_time
             SparqlGraph.total_sparql_queries += 1
             if self.debug:
-                print(f"took {round((time() - prev_time) * 1000)}ms")
+                import inspect
+                fun_name = f'{type(inspect.currentframe().f_back.f_locals["self"]).__name__}.{inspect.currentframe().f_back.f_code.co_name}'
+                if not SparqlGraph.function_times.get(fun_name):
+                    SparqlGraph.function_times[fun_name] = 0
+                SparqlGraph.function_times[fun_name] += time() - prev_time
+
+                print(f"took {round((time() - prev_time) * 1000)}ms. Total {fun_name}: {self.function_times[fun_name] * 1000}ms")
 
             # Post processing
             if client == self.client:
@@ -96,7 +103,8 @@ class SparqlGraph(BaseMainGraph):
 
             return result
         except:
-            print('error with the above sparql query')
+            print('error with the below sparql query using ' + ('update client' if client == self.update_client else 'normal client'))
+            print(';'.join(query))
             raise
 
     def acquire_write_lock(self):
