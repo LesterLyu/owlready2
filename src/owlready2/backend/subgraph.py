@@ -69,7 +69,7 @@ class SparqlSubGraph(BaseSubGraph):
                 insert data {{
                     graph <{self.graph_iri}> {{ {newline.join(triples)} }}
                 }}
-            """)
+            """, method='update')
             objs.clear()
 
         def insert_datas():
@@ -84,7 +84,7 @@ class SparqlSubGraph(BaseSubGraph):
                 insert data {{
                     graph <{self.graph_iri}> {{ {newline.join(triples)} }}
                 }}
-            """)
+            """, method='update')
             datas.clear()
 
         # TODO: Improve performance: Do we really need to abbreviate IRIs?
@@ -164,19 +164,19 @@ class SparqlSubGraph(BaseSubGraph):
         s_iri, p_iri, o_iri = self._unabbreviate_all(s, p, o)
         delete_query = QueryGenerator.generate_delete_query(s_iri, p_iri, default_graph_iri=self.graph_iri)
         insert_query = QueryGenerator.generate_insert_query(s_iri, p_iri, o_iri, default_graph_iri=self.graph_iri)
-        self.execute(delete_query, insert_query)
+        self.execute(delete_query, insert_query, method='update')
 
     def _add_obj_triple_raw_spo(self, s, p, o):
         if (s is None) or (p is None) or (o is None):
             raise ValueError
         s_iri, p_iri, o_iri = self._unabbreviate_all(s, p, o)
         insert_query = QueryGenerator.generate_insert_query(s_iri, p_iri, o_iri, default_graph_iri=self.graph_iri)
-        self.execute(insert_query)
+        self.execute(insert_query, method='update')
 
     def _del_obj_triple_raw_spo(self, s=None, p=None, o=None):
         s_iri, p_iri, o_iri = self._unabbreviate_all(s, p, o)
         delete_query = QueryGenerator.generate_delete_query(s, p, o, default_graph_iri=self.graph_iri)
-        self.execute(delete_query)
+        self.execute(delete_query, method='update')
 
     def _set_data_triple_raw_spod(self, s, p, o, d):
         if (s is None) or (p is None) or (o is None) or (d is None):
@@ -184,14 +184,14 @@ class SparqlSubGraph(BaseSubGraph):
         s_iri, p_iri, d_iri = self._unabbreviate_all(s, p, d)
         delete_query = QueryGenerator.generate_delete_query(s_iri, p_iri, default_graph_iri=self.graph_iri)
         insert_query = QueryGenerator.generate_insert_query(s_iri, p_iri, o, d_iri, default_graph_iri=self.graph_iri)
-        self.execute(delete_query, insert_query)
+        self.execute(delete_query, insert_query, method='update')
 
     def _add_data_triple_raw_spod(self, s, p, o, d):
         if (s is None) or (p is None) or (o is None) or (d is None):
             raise ValueError
         s_iri, p_iri, d_iri = self._unabbreviate_all(s, p, d)
         insert_query = QueryGenerator.generate_insert_query(s_iri, p_iri, o, d_iri, default_graph_iri=self.graph_iri)
-        self.execute(insert_query)
+        self.execute(insert_query, method='update')
 
     def _del_data_triple_raw_spod(self, s, p, o, d):
         s_iri, p_iri = self._unabbreviate_all(s, p)
@@ -200,7 +200,7 @@ class SparqlSubGraph(BaseSubGraph):
             o_data = QueryGenerator.serialize_to_sparql_type_with_datetype(o, self._unabbreviate(d))
 
         delete_query = QueryGenerator.generate_delete_query(s_iri, p_iri, o_data, default_graph_iri=self.graph_iri)
-        self.execute(delete_query)
+        self.execute(delete_query, method='update')
 
     def _has_obj_triple_spo(self, s=None, p=None, o=None):
         s_iri, p_iri, o_iri = self._unabbreviate_all(s, p, o)
@@ -399,4 +399,11 @@ class SparqlSubGraph(BaseSubGraph):
         return self.parent._iter_ontology_iri(c)
 
     def __len__(self):
-        raise NotImplementedError
+        result = self.execute(f"""
+            select (count(?s) as ?count)
+            from <{self.graph_iri}>
+            where {{
+                graph ?g {{?s ?p ?o .}}
+            }}
+            """)
+        return int(result['results']['bindings'][0]['count']['value'])

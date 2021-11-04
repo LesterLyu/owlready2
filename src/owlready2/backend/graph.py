@@ -52,9 +52,21 @@ class SparqlGraph(BaseMainGraph):
         return True
 
     def __len__(self):
-        raise NotImplementedError
+        from_clause = '\n\t\t\t\t'.join([f'from named <{graph_iri}>' for graph_iri in self.named_graph_iris])
 
-    def execute(self, *query):
+        result = self.execute(f"""
+            select (count(?s) as ?count)
+            {from_clause}
+            where {{
+                graph ?g {{?s ?p ?o .}}
+            }}
+            """)
+        return int(result['results']['bindings'][0]['count']['value'])
+
+    def execute(self, *query, method='select'):
+        """
+        method could be 'select' or 'update'
+        """
         prev_time = time()
         if self.debug:
             import inspect
@@ -63,8 +75,7 @@ class SparqlGraph(BaseMainGraph):
             print(f"execute\n{';'.join(query)}")
 
         # Check which client to use
-        client = self.client if re.search('select[\w\W]+where[\w\W]+{[\w\W]+}',
-                                          ';'.join(query).lower()) else self.update_client
+        client = self.client if method == 'select' else self.update_client
         client.setMethod(POST)
         client.setQuery(';'.join(query))
         try:
@@ -238,7 +249,7 @@ class SparqlGraph(BaseMainGraph):
         insert data {{
             [or2:uuid "{uuid}"].
         }}
-        """)
+        """, method='update')
 
         # Get the blank node ent:id
         result = self.execute(f"""
@@ -258,7 +269,7 @@ class SparqlGraph(BaseMainGraph):
         delete where {{
             ?s or2:uuid "{uuid}".
         }}
-        """)
+        """, method='update')
 
         print(f'create a new blank node with id {bnode_id}')
         return bnode_id
