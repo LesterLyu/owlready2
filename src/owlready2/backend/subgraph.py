@@ -17,13 +17,7 @@ class SparqlSubGraph(BaseSubGraph):
         self.onto = onto
         self.c = c
         self.graph_iri = onto.graph_iri
-
-    def execute(self, *args, **kwargs):
-        if self.parent.debug:
-            import inspect
-            print(f'Called from: {type(self).__name__}.{inspect.currentframe().f_back.f_code.co_name}(' + ', '.join(
-                inspect.currentframe().f_back.f_code.co_varnames) + ')')
-        return self.parent.execute(*args, **kwargs)
+        self.execute = self.parent.execute
 
     def _abbreviate(self, iri, create_if_missing=True):
         return self.parent._abbreviate(iri, create_if_missing)
