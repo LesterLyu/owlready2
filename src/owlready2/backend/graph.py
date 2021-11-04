@@ -141,10 +141,38 @@ class SparqlGraph(BaseMainGraph):
             print("create new sub_graph with graph IRI " + onto.graph_iri)
         c = max([0, *[int(i) for i in self.c2ontology.keys()]]) + 1
         self.c2ontology[c] = onto
-        self.graph_iri2c[onto.graph_iri] = c
-        is_new = onto.graph_iri not in self.named_graph_iris
+
+        # Check if the graph already exists.
+        result = self.execute(f"""
+            select ?s from <{onto.graph_iri}> where {{
+                ?s ?p ?o .
+            }} limit 1
+        """)
+        is_new = True if len(result['results']['bindings']) == 0 else False
+
         if is_new:
+            # onto.base_iri could be an alias, check if such alias exists.
+            result = self.execute(f"""
+                PREFIX or2: <http://owlready2/internal#>
+                select ?iri ?graph from <http://owlready2/internal> where {{
+                    [or2:alias "{onto.base_iri}";
+                        or2:iri ?iri;
+                        or2:graph ?graph]
+                }}
+            """)
+            if len(result['results']['bindings']) > 0:
+                is_new = False
+                item = result['results']['bindings'][0]
+                onto.graph_iri = item['graph']['value']
+                # onto.base_iri = item['iri']['value']
+
+        if onto.graph_iri not in self.named_graph_iris:
             self.named_graph_iris.append(onto.graph_iri)
+
+        self.graph_iri2c[onto.graph_iri] = c
+
+        onto._abbreviate = self._abbreviate
+        onto._unabbreviate = self._unabbreviate
         return SparqlSubGraph(self, onto, c), is_new
 
     def ontologies_iris(self):
