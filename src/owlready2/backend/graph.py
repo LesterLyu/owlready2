@@ -136,12 +136,6 @@ class SparqlGraph(BaseMainGraph):
         # Don't do anything
         pass
 
-    def fix_base_iri(self, base_iri, c=None):
-        if base_iri.endswith("#") or base_iri.endswith("/"):
-            return base_iri
-        else:
-            raise ValueError("'base_iri' must end with '/' or '#'")
-
     def sub_graph(self, onto):
         if self.debug:
             print("create new sub_graph with graph IRI " + onto.graph_iri)
