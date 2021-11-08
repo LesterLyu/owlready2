@@ -108,9 +108,12 @@ class SparqlGraph(BaseMainGraph):
                             # print(f'Got blank node {entity["storid"]}')
                         # assign datatype for literal and storid 'd' for datatype
                         elif entity["type"] == 'literal':
-                            if not entity.get('datatype'):
+                            if not entity.get('datatype') and not entity.get('xml:lang'):
                                 entity['datatype'] = "http://www.w3.org/2001/XMLSchema#string"  # default is string
-                            entity['d'] = self._abbreviate(entity['datatype'])
+                            if entity.get('xml:lang'):
+                                entity['d'] = f"@{entity.get('xml:lang')}"
+                            else:
+                                entity['d'] = self._abbreviate(entity.get('datatype'))
 
             return result
         except:
