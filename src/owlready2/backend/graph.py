@@ -167,7 +167,7 @@ class SparqlGraph(BaseMainGraph):
                 is_new = False
                 item = result['results']['bindings'][0]
                 onto.graph_iri = item['graph']['value']
-                # onto.base_iri = item['iri']['value']
+                onto.base_iri = item['iri']['value']
 
         if onto.graph_iri not in self.named_graph_iris:
             self.named_graph_iris.append(onto.graph_iri)
