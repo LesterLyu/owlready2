@@ -63,8 +63,11 @@ class SparqlSubGraph(BaseSubGraph):
             }}
         """)
         items = result['results']['bindings']
-        if len(items) > 0:
-            return items[0]['ns']['value']
+
+        # Iterate all namespaces that has length + 1
+        for item in items:
+            if len(item['ns']['value']) - 1 == len(base_iri):
+                return item['ns']['value']
         else:
             # Default to use '#'
             return "%s#" % base_iri
