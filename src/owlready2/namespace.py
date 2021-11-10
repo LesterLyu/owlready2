@@ -551,12 +551,17 @@ class World(_GraphManager):
     yield from self.as_rdflib_graph().query_owlready(sparql, *args, **kargs)
 
   def sparql(self, sparql, params = (), error_on_undefined_entities = True):
-    import owlready2.sparql.main
-    query = self._prepare_sparql(sparql, error_on_undefined_entities)
-    return query.execute(params)
+    if self.backend == 'sparql-endpoint':
+      return self.graph.client.execute_owlready(sparql, error_on_undefined_entities=error_on_undefined_entities)
+    else:
+      import owlready2.sparql.main
+      query = self._prepare_sparql(sparql, error_on_undefined_entities)
+      return query.execute(params)
 
   @lru_cache(maxsize = 1024)
   def _prepare_sparql(self, sparql, error_on_undefined_entities):
+    if self.backend == 'sparql-endpoint':
+      raise TypeError('Backend sparql-endpoint does not support `World.prepare_sparql` method.')
     import owlready2.sparql.main
     return owlready2.sparql.main.Translator(self, error_on_undefined_entities).parse(sparql)
 
@@ -686,22 +691,22 @@ class World(_GraphManager):
     if storid is None: return None
     return self._get_by_storid(storid, iri)
 
-  def _get_by_storid(self, storid, full_iri = None, main_type = None, main_onto = None, trace = None, default_to_none = True):
+  def _get_by_storid(self, storid, full_iri = None, main_type = None, main_onto = None, trace = None, default_to_none = True, co_rdf_type=None, co_rdfs_subpropertyof=None):
     entity = self._entities.get(storid)
     if not entity is None: return entity
 
     try:
-      return self._load_by_storid(storid, full_iri, main_type, main_onto, default_to_none)
+      return self._load_by_storid(storid, full_iri, main_type, main_onto, default_to_none, co_rdf_type=co_rdf_type, co_rdfs_subpropertyof=co_rdfs_subpropertyof)
     except RecursionError:
-      return self._load_by_storid(storid, full_iri, main_type, main_onto, default_to_none, ())
+      return self._load_by_storid(storid, full_iri, main_type, main_onto, default_to_none, (), co_rdf_type=co_rdf_type, co_rdfs_subpropertyof=co_rdfs_subpropertyof)
 
-  def _load_by_storid(self, storid, full_iri = None, main_type = None, main_onto = None, default_to_none = True, trace = None):
+  def _load_by_storid(self, storid, full_iri = None, main_type = None, main_onto = None, default_to_none = True, trace = None, co_rdf_type=None, co_rdfs_subpropertyof=None):
     with LOADING:
       types       = []
       is_a_bnodes = []
 
       # Iterate all triples and find the owl type
-      for graph, obj in self._get_obj_triples_sp_co(storid, rdf_type):
+      for graph, obj in (co_rdf_type if co_rdf_type is not None else self._get_obj_triples_sp_co(storid, rdf_type)):
         if main_onto is None: main_onto = self.graph.context_2_user_context(graph)
         if   obj == owl_class: main_type = ThingClass
         elif obj == owl_object_property:     main_type = ObjectPropertyClass;     types.append(ObjectProperty)
@@ -733,7 +738,7 @@ class World(_GraphManager):
             trace = (*trace, storid)
 
         is_a_entities = []
-        for graph, obj in self._get_obj_triples_sp_co(storid, main_type._rdfs_is_a):
+        for graph, obj in (co_rdfs_subpropertyof if co_rdfs_subpropertyof is not None else self._get_obj_triples_sp_co(storid, main_type._rdfs_is_a)):
           if obj < 0: is_a_bnodes.append((self.graph.context_2_user_context(graph), obj))
           else:
             obj2 = self._entities.get(obj)
@@ -824,7 +829,7 @@ class World(_GraphManager):
 
       if is_a_bnodes:
         list.extend(entity.is_a, (onto._parse_bnode(bnode) for onto, bnode in is_a_bnodes))
-
+    print('Loaded: ' + repr(entity))
     return entity
 
   def _parse_bnode(self, bnode):
