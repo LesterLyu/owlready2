@@ -1,33 +1,24 @@
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from owlready2.base import *
 from owlready2.driver import BaseMainGraph, BaseSubGraph
-from owlready2.driver import _guess_format, _save
-from owlready2.util import FTS, _LazyListMixin
 from owlready2.base import _universal_abbrev_2_iri, _universal_iri_2_abbrev, _next_abb
 
 from .utils import QueryGenerator
 from .subgraph import SparqlSubGraph
-from time import time
+from .sparql_client import SparqlClient
 import multiprocessing
-import re
 from uuid import uuid4
 
 
 class SparqlGraph(BaseMainGraph):
     _SUPPORT_CLONING = True
-    total_sparql_time = 0
-    total_sparql_queries = 0
-    function_times = {}
 
     def __init__(self, endpoint: str, world=None, debug=False):
         self.endpoint = endpoint
         self.world = world
         self.debug = debug
 
-        self.client = SPARQLWrapper(endpoint, returnFormat=JSON)
-        self.client.setMethod(POST)
-        self.update_client = SPARQLWrapper(endpoint + '/statements')
-        self.update_client.setMethod(POST)
+        self.client = SparqlClient(endpoint, world, self._abbreviate, debug)
+        self.execute = self.client.execute_internal
 
         self.storid2iri = {}
         self.iri2storid = {}
@@ -62,64 +53,6 @@ class SparqlGraph(BaseMainGraph):
             }}
             """)
         return int(result['results']['bindings'][0]['count']['value'])
-
-    def execute(self, *query, method='select'):
-        """
-        method could be 'select' or 'update'
-        """
-        prev_time = time()
-        if self.debug:
-            import inspect
-            print(f'Called from: {type(inspect.currentframe().f_back.f_locals["self"]).__name__}.{inspect.currentframe().f_back.f_code.co_name}(' + ', '.join(
-                inspect.currentframe().f_back.f_code.co_varnames) + ')')
-            print(f"execute\n{';'.join(query)}")
-
-        # Check which client to use
-        client = self.client if method == 'select' else self.update_client
-        client.setMethod(POST)
-        client.setQuery(';'.join(query))
-        try:
-            result = client.query().convert()
-
-            SparqlGraph.total_sparql_time += time() - prev_time
-            SparqlGraph.total_sparql_queries += 1
-            if self.debug:
-                import inspect
-                fun_name = f'{type(inspect.currentframe().f_back.f_locals["self"]).__name__}.{inspect.currentframe().f_back.f_code.co_name}'
-                if not SparqlGraph.function_times.get(fun_name):
-                    SparqlGraph.function_times[fun_name] = 0
-                SparqlGraph.function_times[fun_name] += time() - prev_time
-
-                print(f"took {round((time() - prev_time) * 1000)}ms. Total {fun_name}: {self.function_times[fun_name] * 1000}ms")
-
-            # Post processing
-            if client == self.client:
-                for item in result["results"]["bindings"]:
-                    for entity_name in ['s', 'p', 'o']:
-                        entity = item.get(entity_name)
-                        if not entity:
-                            continue
-                        # Pre-Abbreviate uri
-                        if entity["type"] == 'uri':
-                            entity["storid"] = self._abbreviate(entity["value"])
-                        # process blank node id
-                        elif entity["type"] == 'bnode':
-                            entity["storid"] = -int(item[entity_name + 'id']["value"])
-                            # print(f'Got blank node {entity["storid"]}')
-                        # assign datatype for literal and storid 'd' for datatype
-                        elif entity["type"] == 'literal':
-                            if not entity.get('datatype') and not entity.get('xml:lang'):
-                                entity['datatype'] = "http://www.w3.org/2001/XMLSchema#string"  # default is string
-                            if entity.get('xml:lang'):
-                                entity['d'] = f"@{entity.get('xml:lang')}"
-                            else:
-                                entity['d'] = self._abbreviate(entity.get('datatype'))
-
-            return result
-        except:
-            print('error with the below sparql query using ' + ('update client' if client == self.update_client else 'normal client'))
-            print(';'.join(query))
-            raise
 
     def acquire_write_lock(self):
         self.lock.acquire()
@@ -167,7 +100,7 @@ class SparqlGraph(BaseMainGraph):
                 is_new = False
                 item = result['results']['bindings'][0]
                 onto.graph_iri = item['graph']['value']
-                onto.base_iri = item['iri']['value']
+                # onto.base_iri = item['iri']['value']
 
         if onto.graph_iri not in self.named_graph_iris:
             self.named_graph_iris.append(onto.graph_iri)
