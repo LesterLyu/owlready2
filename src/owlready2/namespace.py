@@ -1034,20 +1034,56 @@ class Ontology(Namespace, _GraphManager):
       if prop._check_update(self) and _LOG_LEVEL:
         print("* Owlready2 * Reseting property %s: new triples are now available." % prop)
 
-    # Loads new props
     props = []
-    for prop_storid in itertools.chain(self._get_obj_triples_po_s(rdf_type, owl_object_property), self._get_obj_triples_po_s(rdf_type, owl_data_property), self._get_obj_triples_po_s(rdf_type, owl_annotation_property)):
-      Prop = self.world._get_by_storid(prop_storid)
-      python_name_d = self.world._get_data_triple_sp_od(prop_storid, owlready_python_name)
+    # Loads new props
+    if self.world.backend == 'sparql-endpoint':
+      # Optimize for sparql-backend
+      prop_storids = [*self._get_obj_triples_po_s(rdf_type, owl_object_property),
+                      *self._get_obj_triples_po_s(rdf_type, owl_data_property),
+                      *self._get_obj_triples_po_s(rdf_type, owl_annotation_property)]
 
-      if not isinstance(Prop, PropertyClass):
-        raise TypeError("'%s' belongs to more than one entity types (cannot be both a property and a class/an individual)!" % Prop.iri)
+      # s -> (c, o) where p is rdf_type
+      prop_storid2co_rdf_type = {}
+      # s -> (c, o) where p is rdfs_subpropertyof
+      prop_storid2co_rdfs_subpropertyof = {}
+      for c, prop_storid, p, o in self.world.graph._get_obj_triples_sp_cspo(prop_storids, [rdf_type, rdfs_subpropertyof]):
+        if not prop_storid2co_rdf_type.get(prop_storid):
+          prop_storid2co_rdf_type[prop_storid] = []
+        if not prop_storid2co_rdfs_subpropertyof.get(prop_storid):
+          prop_storid2co_rdfs_subpropertyof[prop_storid] = []
 
-      if python_name_d is None:
-        props.append(Prop.python_name)
-      else:
-        with LOADING: Prop.python_name = python_name_d[0]
-        props.append("%s (%s)" % (Prop.python_name, Prop.name))
+        if p is rdf_type:
+          prop_storid2co_rdf_type[prop_storid].append((c, o))
+        else:
+          prop_storid2co_rdfs_subpropertyof[prop_storid].append((c, o))
+
+      for i in range(len(prop_storids)):
+        prop_storid = prop_storids[i]
+        Prop = self.world._get_by_storid(prop_storid, co_rdf_type=prop_storid2co_rdf_type[prop_storid] or [],
+                                         co_rdfs_subpropertyof=prop_storid2co_rdfs_subpropertyof[prop_storid] or [])
+        if not isinstance(Prop, PropertyClass):
+          raise TypeError("'%s' belongs to more than one entity types (cannot be both a property and a class/an individual)!" % Prop.iri)
+
+        print(f'Loading {i + 1}/{len(prop_storids)}')
+
+      for prop_storid, python_name, d in self.world.graph._get_data_triples_sp_sod(prop_storids, owlready_python_name):
+        Prop = self.world._get_by_storid(prop_storid)
+
+        with LOADING: Prop.python_name = python_name
+
+    else:
+      for prop_storid in itertools.chain(self._get_obj_triples_po_s(rdf_type, owl_object_property), self._get_obj_triples_po_s(rdf_type, owl_data_property), self._get_obj_triples_po_s(rdf_type, owl_annotation_property)):
+        Prop = self.world._get_by_storid(prop_storid)
+        python_name_d = self.world._get_data_triple_sp_od(prop_storid, owlready_python_name)
+
+        if not isinstance(Prop, PropertyClass):
+          raise TypeError("'%s' belongs to more than one entity types (cannot be both a property and a class/an individual)!" % Prop.iri)
+
+        if python_name_d is None:
+          props.append(Prop.python_name)
+        else:
+          with LOADING: Prop.python_name = python_name_d[0]
+          props.append("%s (%s)" % (Prop.python_name, Prop.name))
     if _LOG_LEVEL:
       print("* Owlready2 *     ...%s properties found: %s" % (len(props), ", ".join(props)), file = sys.stderr)
 

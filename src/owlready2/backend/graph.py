@@ -531,3 +531,34 @@ class SparqlGraph(BaseMainGraph):
 
     def disable_full_text_search(self, prop_storid):
         raise NotImplementedError
+
+    # Optimized queries for multiple subjects/predicates
+    def _get_data_triples_sp_sod(self, s: list, p: list):
+        """Take a list of subjects and a predicate."""
+        if not isinstance(s, list):
+            s = [s]
+        if not isinstance(p, list):
+            p = [p]
+        s_iris = self._unabbreviate_all(*s)
+        p_iris = self._unabbreviate_all(*p)
+
+        query = QueryGenerator.generate_select_query(s_iris, p_iris, is_data=True, graph_iris=self.named_graph_iris)
+
+        result = self.execute(query)
+        for item in result["results"]["bindings"]:
+            yield item["s"]["storid"], item["o"]["value"], item["o"].get("d")
+
+    def _get_obj_triples_sp_cspo(self, s: list, p: list):
+        """Take a list of subjects and a predicate."""
+        if not isinstance(s, list):
+            s = [s]
+        if not isinstance(p, list):
+            p = [p]
+        s_iris = self._unabbreviate_all(*s)
+        p_iris = self._unabbreviate_all(*p)
+
+        query = QueryGenerator.generate_select_query(s_iris, p_iris, is_obj=True, graph_iris=self.named_graph_iris)
+        result = self.execute(query)
+
+        for item in result["results"]["bindings"]:
+            yield self.graph_iri2c[item["g"]["value"]], item["s"]["storid"], item["p"]["storid"], item["o"]["storid"]
