@@ -74,10 +74,12 @@ class QueryGenerator:
                 return json.dumps(value)
             return f'{json.dumps(value)}{datatype}'
         else:
-            raise TypeError(f"Unknown SPARQL type {datatype}")
+            # Arbitrary Datatypes: https://www.w3.org/TR/rdf-sparql-query/#matchArbDT
+            return f'"{value}^^<{datatype}>"'
+            # raise TypeError(f"Unknown SPARQL type {datatype}")
 
     @staticmethod
-    def deserialize_to_py_type(value, type, datatype):
+    def deserialize_to_owlready_type(value, type, datatype):
         """
         deserialize the datatype in SPARQL to Python
         https://www.w3.org/TR/sparql11-results-json/ 3.2.2 Encoding RDF terms
@@ -125,8 +127,27 @@ class QueryGenerator:
 
         if s and isinstance(s, str):
             binds.append(f'bind(<{s}> as ?s)')
+        elif s and isinstance(s, list):
+            inner_filter = []
+            for item in s:
+                # blank node
+                if isinstance(item, int) and item < 0:
+                    inner_filter.append(f'?sid = {-item}')
+                else:
+                    inner_filter.append(f'?s = <{item}>')
+            filters.append(f'filter({" || ".join(inner_filter)})')
+
         if p and isinstance(p, str):
             binds.append(f'bind(<{p}> as ?p)')
+        elif p and isinstance(p, list):
+            inner_filter = []
+            for item in p:
+                # blank node
+                if isinstance(item, int) and item < 0:
+                    raise TypeError("Predicate cannot be blank node.")
+                else:
+                    inner_filter.append(f'?p = <{item}>')
+            filters.append(f'filter({" || ".join(inner_filter)})')
 
         if sid or (isinstance(s, int) and s < 0):
             binds.append(f'bind({-(sid or s)} as ?sid)')
