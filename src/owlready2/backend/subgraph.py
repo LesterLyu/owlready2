@@ -101,25 +101,18 @@ class SparqlSubGraph(BaseSubGraph):
                 else:
                     yield self._unabbreviate(storid)
 
-        def insert_objs():
+        def insert():
+            # TODO: Split it and save it into a file to reduce memory usage.
             triples = []
+
+            # objs
             for spo in objs:
                 s, p, o = _unabbreviate_all(*spo)
                 # s and o can be blank nodes
                 s_repr = s if s.startswith('_') else f'<{s}>'
                 o_repr = o if o.startswith('_') else f'<{o}>'
                 triples.append(f'{s_repr} <{p}> {o_repr}.')
-
-            newline = '\n\t\t\t\t'
-            self.execute(f"""
-                insert data {{
-                    graph <{self.graph_iri}> {{ {newline.join(triples)} }}
-                }}
-            """, method='update')
-            objs.clear()
-
-        def insert_datas():
-            triples = []
+            # datas
             for spod in datas:
                 o = spod[2]
                 s, p, d = _unabbreviate_all(spod[0], spod[1], spod[3])
@@ -129,11 +122,10 @@ class SparqlSubGraph(BaseSubGraph):
 
             newline = '\n\t\t\t\t'
             self.execute(f"""
-                insert data {{
-                    graph <{self.graph_iri}> {{ {newline.join(triples)} }}
-                }}
-            """, method='update')
-            datas.clear()
+                           insert data {{
+                               graph <{self.graph_iri}> {{ {newline.join(triples)} }}
+                           }}
+                       """, method='update')
 
         # TODO: Improve performance: Do we really need to abbreviate IRIs?
         def on_prepare_obj(s, p, o):
@@ -142,8 +134,6 @@ class SparqlSubGraph(BaseSubGraph):
             if isinstance(o, str):
                 o = _abbreviate(o)
             objs.append((s, _abbreviate(p), o))
-            if len(objs) > 10000:
-                insert_objs()
 
         def on_prepare_data(s, p, o, d):
             if isinstance(s, str):
@@ -151,8 +141,6 @@ class SparqlSubGraph(BaseSubGraph):
             if d and (not d.startswith("@")):
                 d = _abbreviate(d)
             datas.append((s, _abbreviate(p), o, d))
-            if len(datas) > 10000:
-                insert_datas()
 
         def on_finish():
             if filename:
@@ -160,8 +148,7 @@ class SparqlSubGraph(BaseSubGraph):
             else:
                 date = time()
 
-            insert_objs()
-            insert_datas()
+            insert()
 
             # Get Ontology base_iri
             # There might be several owl:Ontology in the named graph, pick the first one
