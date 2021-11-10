@@ -142,7 +142,7 @@ class SparqlSubGraph(BaseSubGraph):
             if isinstance(o, str):
                 o = _abbreviate(o)
             objs.append((s, _abbreviate(p), o))
-            if len(objs) > 1000:
+            if len(objs) > 10000:
                 insert_objs()
 
         def on_prepare_data(s, p, o, d):
@@ -151,7 +151,7 @@ class SparqlSubGraph(BaseSubGraph):
             if d and (not d.startswith("@")):
                 d = _abbreviate(d)
             datas.append((s, _abbreviate(p), o, d))
-            if len(datas) > 1000:
+            if len(datas) > 10000:
                 insert_datas()
 
         def on_finish():
