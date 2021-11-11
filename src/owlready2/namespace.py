@@ -18,6 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import importlib, urllib.request, urllib.parse
+import certifi
 from functools import lru_cache
 
 from owlready2.base import *
@@ -966,7 +967,7 @@ class Ontology(Namespace, _GraphManager):
     if f.startswith("http:") or f.startswith("https:"):
       if  reload or (self.graph.get_last_update_time() == 0.0): # Never loaded
         if _LOG_LEVEL: print("* Owlready2 *     ...loading ontology %s from %s..." % (self.name, f), file = sys.stderr)
-        try:     fileobj = urllib.request.urlopen(url or f)
+        try:     fileobj = urllib.request.urlopen(url or f, cafile=certifi.where())
         except:  raise OwlReadyOntologyParsingError("Cannot download '%s'!" % f)
         try:     new_base_iri = self.graph.parse(fileobj, default_base = self.base_iri, **args)
         finally: fileobj.close()
@@ -1380,7 +1381,7 @@ def _open_onto_file(base_iri, name, mode = "r", only_local = False):
     for ext in ["", ".owl", ".rdf", ".n3"]:
       filename = os.path.join(dir, "%s%s" % (name, ext))
       if os.path.exists(filename): return open(filename, mode)
-  if (mode.startswith("r")) and not only_local: return urllib.request.urlopen(base_iri)
+  if (mode.startswith("r")) and not only_local: return urllib.request.urlopen(base_iri, cafile=certifi.where())
   if (mode.startswith("w")): return open(os.path.join(onto_path[0], "%s.owl" % name), mode)
   raise FileNotFoundError
 
