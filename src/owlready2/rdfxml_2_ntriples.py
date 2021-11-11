@@ -163,6 +163,7 @@ def parse(f, on_prepare_obj = None, on_prepare_data = None, new_blank = None, de
 
         if namespace_base:
           xml_base = namespace_base
+          if xml_base.endswith("#") or xml_base.endswith("/"): xml_base = xml_base[:-1]
           if "/" in namespace_base:
             xml_dir  = namespace_base.rsplit("/", 1)[0] + "/"
             
