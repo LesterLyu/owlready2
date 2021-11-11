@@ -127,6 +127,9 @@ class SparqlSubGraph(BaseSubGraph):
                            }}
                        """, method='update')
 
+        def insert_objs(): pass
+        def insert_datas(): pass
+
         # TODO: Improve performance: Do we really need to abbreviate IRIs?
         def on_prepare_obj(s, p, o):
             if isinstance(s, str):
