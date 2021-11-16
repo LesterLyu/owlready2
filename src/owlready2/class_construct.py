@@ -338,7 +338,10 @@ class Restriction(ClassConstruct):
       else:
         if not self.cardinality is None: ontology._add_data_triple_spod(self.storid, self.type, self.cardinality, _non_negative_integer)
         o, d = ontology.world._to_rdf(self.value)
-        if self.value in _universal_datatype_2_abbrev:
+
+        # Check whether to use owl:onDataRange or owl:onClass.
+        # Use owl:onDataRange if str, float, data, ... or OneOf is provided
+        if self.value in _universal_datatype_2_abbrev or isinstance(self.value, OneOf):
           ontology._add_obj_triple_spo(self.storid, owl_ondatarange, o)
         else:
           ontology._add_obj_triple_spo(self.storid, owl_onclass, o)
