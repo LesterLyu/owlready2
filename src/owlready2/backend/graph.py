@@ -562,3 +562,19 @@ class SparqlGraph(BaseMainGraph):
 
         for item in result["results"]["bindings"]:
             yield self.graph_iri2c[item["g"]["value"]], item["s"]["storid"], item["p"]["storid"], item["o"]["storid"]
+
+    def _parse_bnode(self, bnode):
+        result = self.execute(f"""
+            PREFIX ent: <http://www.ontotext.com/owlim/entity#>
+            select ?g
+            where {{
+                graph ?g {{
+                    {{?s ?p ?o. ?s ent:id {bnode}.}}
+                    union 
+                    {{?s ?p ?o. ?o ent:id {bnode}.}}
+                }}
+            }} limit 1
+        """)
+        items = result["results"]["bindings"]
+        if len(items) == 1:
+            return self.c2ontology[self.graph_iri2c[items[0]["g"]["value"]]]._parse_bnode(bnode)

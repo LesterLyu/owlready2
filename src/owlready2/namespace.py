@@ -835,12 +835,14 @@ class World(_GraphManager):
 
   def _parse_bnode(self, bnode):
     if self.backend == 'sparql-endpoint':
-      raise NotImplementedError
-    c = self.graph.db.execute("""SELECT c FROM objs WHERE s=? LIMIT 1""", (bnode,)).fetchone()
-    if c:
-      c = c[0]
-      for onto in self.ontologies.values():
-        if onto.graph.c == c: return onto._parse_bnode(bnode)
+      return self.graph._parse_bnode(bnode)
+
+    else:
+      c = self.graph.db.execute("""SELECT c FROM objs WHERE s=? LIMIT 1""", (bnode,)).fetchone()
+      if c:
+        c = c[0]
+        for onto in self.ontologies.values():
+          if onto.graph.c == c: return onto._parse_bnode(bnode)
 
 
 class Ontology(Namespace, _GraphManager):
