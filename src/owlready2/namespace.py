@@ -950,7 +950,7 @@ class Ontology(Namespace, _GraphManager):
         if cached.storid in _entities: del _entities[cached.storid]
         _cache[i] = None
 
-  def load(self, only_local = False, fileobj = None, reload = False, reload_if_newer = False, url = None, **args):
+  def load(self, only_local = False, fileobj = None, reload = False, reload_if_newer = False, url = None, load_all_properties = True, **args):
     if self.loaded and (not reload): return self
 
 
@@ -1014,7 +1014,7 @@ class Ontology(Namespace, _GraphManager):
     self._imported_ontologies._set(imported_ontologies)
 
     # Search for property names -- must be done AFTER loading imported ontologies, because the properties might be partly defined in the imported ontologies
-    if self.world.graph.indexed: self._load_properties()
+    if self.world.graph.indexed and load_all_properties: self._load_properties()
 
     # Import Python module
     global default_world, IRIS, get_ontology
