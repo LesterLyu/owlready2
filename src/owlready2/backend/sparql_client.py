@@ -78,14 +78,14 @@ class SparqlClient:
 
             SparqlClient.total_sparql_time += time() - prev_time
             SparqlClient.total_sparql_queries += 1
-            if self.debug:
-                import inspect
-                fun_name = f'{type(inspect.currentframe().f_back.f_back.f_locals["self"]).__name__}.{inspect.currentframe().f_back.f_back.f_code.co_name}'
-                if not SparqlClient.function_times.get(fun_name):
-                    SparqlClient.function_times[fun_name] = [0, 0]
-                SparqlClient.function_times[fun_name][0] += time() - prev_time
-                SparqlClient.function_times[fun_name][1] += 1
 
+            import inspect
+            fun_name = f'{type(inspect.currentframe().f_back.f_back.f_locals["self"]).__name__}.{inspect.currentframe().f_back.f_back.f_code.co_name}'
+            if not SparqlClient.function_times.get(fun_name):
+                SparqlClient.function_times[fun_name] = [0, 0]
+            SparqlClient.function_times[fun_name][0] += time() - prev_time
+            SparqlClient.function_times[fun_name][1] += 1
+            if self.debug:
                 print(
                     f"took {round((time() - prev_time) * 1000)}ms. Total {fun_name}: {self.function_times[fun_name][0] * 1000}ms")
             return result
