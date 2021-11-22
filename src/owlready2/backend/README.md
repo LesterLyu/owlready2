@@ -17,7 +17,7 @@
   - [ ] `is_a`, for searching both Individuals and subclasses of a given Class
   - [ ] `subproperty_of`, for searching subproperty of a given Property
   - [ ] any object, data or annotation property name
-- [ ] Use remote SPARQL engine to perform customized SPARQL query.
+- [x] Use remote SPARQL engine to perform customized SPARQL query.
 - [ ] Implement `SparqlGraph._new_numbered_iri(self, ...)` to generate IRI for newly created individual.
 - [x] Store modified/update time for Ontology in an internal graph (http://owlready2/internal).
 
