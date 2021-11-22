@@ -102,30 +102,80 @@ class SparqlSubGraph(BaseSubGraph):
                     yield self._unabbreviate(storid)
 
         def insert():
-            # TODO: Split it and save it into a file to reduce memory usage.
+            # TODO: Split it and save it into a file to reduce memory usage?
+            prefixes = {
+                'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf:',
+                'http://www.w3.org/2000/01/rdf-schema#': 'rdfs:',
+                'http://www.w3.org/2002/07/owl#': 'owl:'
+            }
+            PREFIX = '\n'.join([f'PREFIX {val} <{key}>' for key, val in prefixes.items()])
+
             triples = []
+            triples_contains_bn = []
 
             # objs
             for spo in objs:
                 s, p, o = _unabbreviate_all(*spo)
+
                 # s and o can be blank nodes
                 s_repr = s if s.startswith('_') else f'<{s}>'
+                p_repr = f'<{p}>'
                 o_repr = o if o.startswith('_') else f'<{o}>'
-                triples.append(f'{s_repr} <{p}> {o_repr}.')
+
+                for prefix in prefixes:
+                    if s.startswith(prefix):
+                        s_repr = f'{prefixes[prefix]}{s[len(prefix):]}'
+                    if p.startswith(prefix):
+                        p_repr = f'{prefixes[prefix]}{p[len(prefix):]}'
+                    if o.startswith(prefix):
+                        o_repr = f'{prefixes[prefix]}{o[len(prefix):]}'
+
+                triple = f'{s_repr} {p_repr} {o_repr}.'
+                if s_repr.startswith('_') or o_repr.startswith('_'):
+                    triples_contains_bn.append(triple)
+                else:
+                    triples.append(triple)
             # datas
             for spod in datas:
                 o = spod[2]
                 s, p, d = _unabbreviate_all(spod[0], spod[1], spod[3])
-                # s and o can be blank nodes
-                s_repr = s if s.startswith('_') else f'<{s}>'
-                triples.append(f'{s_repr} <{p}> {QueryGenerator.serialize_to_sparql_type_with_datetype(o, d)}.')
 
+                # s can be blank nodes
+                s_repr = s if s.startswith('_') else f'<{s}>'
+                p_repr = f'<{p}>'
+
+                for prefix in prefixes:
+                    if s.startswith(prefix):
+                        s_repr = f'{prefixes[prefix]}{s[len(prefix):]}'
+                    if p.startswith(prefix):
+                        p_repr = f'{prefixes[prefix]}{p[len(prefix):]}'
+
+                triple = f'{s_repr} {p_repr} {QueryGenerator.serialize_to_sparql_type_with_datetype(o, d)}.'
+                if s_repr.startswith('_'):
+                    triples_contains_bn.append(triple)
+                else:
+                    triples.append(triple)
+
+            # TODO: SPARQL endpoint cannot accept query > 1.5MB
             newline = '\n\t\t\t\t'
+            # Split triples without blank nodes
+            for i in range(0, len(triples), 10000):
+                self.execute(f"""
+                    {PREFIX}
+                    insert data {{
+                       graph <{self.graph_iri}> {{ {newline.join(triples[i:i + 10000])} }}
+                    }}
+                """, method='update')
+
+            # Split triples with blank nodes
+
+
             self.execute(f"""
-                           insert data {{
-                               graph <{self.graph_iri}> {{ {newline.join(triples)} }}
-                           }}
-                       """, method='update')
+                {PREFIX}
+                insert data {{
+                    graph <{self.graph_iri}> {{ {newline.join(triples_contains_bn)} }}
+                }}
+               """, method='update')
 
         def insert_objs(): pass
         def insert_datas(): pass
@@ -167,6 +217,9 @@ class SparqlSubGraph(BaseSubGraph):
             onto_base_iri = None
             if len(items) > 0:
                 onto_base_iri = items[0]["s"]["value"]
+
+            if onto_base_iri is None:
+                raise TypeError("The imported file has no ontology.")
 
             if not onto_base_iri.endswith("/"):
                 onto_base_iri = self.fix_base_iri(onto_base_iri)
