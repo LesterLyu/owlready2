@@ -335,7 +335,7 @@ class SparqlSubGraph(BaseSubGraph):
 
     def _del_obj_triple_raw_spo(self, s=None, p=None, o=None):
         s_iri, p_iri, o_iri = self._unabbreviate_all(s, p, o)
-        delete_query = QueryGenerator.generate_delete_query(s, p, o, default_graph_iri=self.graph_iri)
+        delete_query = QueryGenerator.generate_delete_query(s_iri, p_iri, o_iri, default_graph_iri=self.graph_iri)
         self.execute(delete_query, method='update')
 
     def _set_data_triple_raw_spod(self, s, p, o, d):
