@@ -214,30 +214,37 @@ class QueryGenerator:
         Generate SPARQL insert query.
         'o' could be literal or URI.
         """
+        if not default_graph_iri:
+            raise TypeError('default_graph_iri is required.')
+
         # 'o' is a literal if 'd' is provided
         if d or d == '':
             is_data = True
         if is_data and d is None:
             d = SPARQL_STR_TYPES[0]
 
-        # TODO: Treat blank nodes, s and o can be negative integer
+        subject = f'<{s}>'
+        object = f'<{o}>' if not is_data else QueryGenerator.serialize_to_sparql_type_with_datetype(o, d)
+        where_clause = []
 
+        # s is a blank node
+        if isinstance(s, int) and s < 0:
+            subject = '?s'
+            where_clause.append(f'?s ent:id {-s}.')
 
-        if default_graph_iri:
-            query = f"""
-                insert data {{
-                    graph <{default_graph_iri}> {{
-                        <{s}> <{p}> {f'<{o}>' if not is_data else QueryGenerator.serialize_to_sparql_type_with_datetype(o, d)}
-                    }}
-                }};
-            """
-        else:
-            # This may not be used, owlready2 always use a named graph
-            query = f"""
-                insert data {{
-                    <{s}> <{p}> {f'<{o}>' if not is_data else QueryGenerator.serialize_to_sparql_type_with_datetype(o, d)}
-                }};
-            """
+        # o is a blank node
+        if isinstance(o, int) and o < 0:
+            object = '?o'
+            where_clause.append(f'?o ent:id {-o}.')
+
+        query = f"""
+            PREFIX ent: <http://www.ontotext.com/owlim/entity#>
+            insert {'data' if len(where_clause) == 0 else ''} {{
+                graph <{default_graph_iri}> {{
+                    {subject} <{p}> {object}
+                }}
+            }}{('where {' + ''.join(where_clause) + '}') if len(where_clause) > 0 else ''};
+        """
         return query
 
     @staticmethod
@@ -246,9 +253,19 @@ class QueryGenerator:
         Generate SPARQL delete query.
         'o' could be literal or URI, and should be serialized before invoke this method.
         """
+        if not default_graph_iri:
+            raise TypeError('default_graph_iri is required.')
+
+        where_clause = []
+
         subject = '?s' if s is None else f'<{s}>'
         predicate = '?p' if p is None else f'<{p}>'
         object = '?o'
+
+        # s is a blank node
+        if isinstance(s, int) and s < 0:
+            subject = '?s'
+            where_clause.append(f'?s ent:id {-s}.')
 
         # 'o' is a literal if 'd' is provided
         if d or is_data:
@@ -256,19 +273,13 @@ class QueryGenerator:
         elif o:
             object = f'<{o}>'
 
-        if default_graph_iri:
-            query = f"""
-                delete where {{
-                    graph <{default_graph_iri}> {{
-                        {subject} {predicate} {object}.
-                    }}
+        query = f"""
+            PREFIX ent: <http://www.ontotext.com/owlim/entity#>
+            delete where {{
+                graph <{default_graph_iri}> {{
+                    {subject} {predicate} {object}.
                 }}
-            """
-        else:
-            # This may not be used, owlready2 always use a named graph
-            query = f"""
-                delete where {{
-                    <{subject}> <{predicate}> <{object}>.
-                }}
-            """
+                {''.join(where_clause)}
+            }}
+        """
         return query
