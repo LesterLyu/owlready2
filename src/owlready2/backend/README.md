@@ -18,7 +18,7 @@
   - [ ] `subproperty_of`, for searching subproperty of a given Property
   - [ ] any object, data or annotation property name
 - [x] Use remote SPARQL engine to perform customized SPARQL query.
-- [ ] Implement `SparqlGraph._new_numbered_iri(self, ...)` to generate IRI for newly created individual.
+- [x] Implement `SparqlGraph._new_numbered_iri(self, ...)` to generate IRI for newly created individual.
 - [x] Store modified/update time for Ontology in an internal graph (http://owlready2/internal).
 
 
