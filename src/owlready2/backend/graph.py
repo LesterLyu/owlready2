@@ -130,9 +130,48 @@ class SparqlGraph(BaseMainGraph):
 
     def _new_numbered_iri(self, prefix):
         """
-        TODO: find a way to generate numbered IRI
+        Generate numbered IRI.
+        Metadata is stored in graph http://owlready2/internal as [or2:prefix ?prefix; or2:idx ?idx].
+        idx start with 1.
         """
-        raise NotImplementedError
+        result = self.execute(f"""
+                   PREFIX or2: <http://owlready2/internal#>
+                   select ?idx from <http://owlready2/internal> where {{
+                       [or2:prefix "{prefix}";
+                           or2:idx ?idx]
+                   }}
+        """)
+        if len(result["results"]["bindings"]) > 0:
+            idx = int(result["results"]["bindings"][0]["idx"]["value"]) + 1
+            self.execute(f"""
+                PREFIX or2: <http://owlready2/internal#>
+                delete where {{
+                     graph <http://owlready2/internal> {{
+                        ?s or2:prefix "{prefix}"; 
+                           or2:idx ?o
+                    }}
+                }};
+                insert data {{
+                    graph <http://owlready2/internal> {{
+                        [or2:prefix "{prefix}";
+                           or2:idx {idx}]
+                    }}
+                }}
+            """)
+            return f'{prefix}{idx}'
+
+        # Create a new blank node
+        self.execute(f"""
+            PREFIX or2: <http://owlready2/internal#>
+            insert data {{
+                graph <http://owlready2/internal> {{
+                    [or2:prefix "{prefix}";
+                       or2:idx 1]
+                }}
+            }}
+        """)
+        return f'{prefix}1'
+
 
     def _refactor(self, storid, new_iri):
         self.storid2iri[storid] = new_iri
