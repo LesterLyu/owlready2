@@ -20,6 +20,7 @@
 import importlib, urllib.request, urllib.parse
 import certifi
 from functools import lru_cache
+from tqdm import tqdm
 
 from owlready2.base import *
 from owlready2.base import _universal_abbrev_2_iri, _universal_iri_2_abbrev, _universal_abbrev_2_datatype, _universal_datatype_2_abbrev
@@ -466,6 +467,7 @@ class World(_GraphManager):
     self._rdflib_store    = None
     self.graph            = None
     self.backend = backend
+    self.pbar = tqdm(position=0, unit=' entities', desc='Loaded', disable=filename == None)
 
     if not owl_world is None:
       self._entities.update(owl_world._entities) # add OWL entities in the world
@@ -705,6 +707,9 @@ class World(_GraphManager):
     with LOADING:
       types       = []
       is_a_bnodes = []
+      self.pbar.set_postfix_str(f'Current: {self._unabbreviate(storid)}')
+      self.pbar.update(1)
+      # print(f'Loading {self._unabbreviate(storid)}')
 
       # Iterate all triples and find the owl type
       for graph, obj in (co_rdf_type if co_rdf_type is not None else self._get_obj_triples_sp_co(storid, rdf_type)):
@@ -830,7 +835,7 @@ class World(_GraphManager):
 
       if is_a_bnodes:
         list.extend(entity.is_a, (onto._parse_bnode(bnode) for onto, bnode in is_a_bnodes))
-    print('Loaded: ' + repr(entity))
+    # print('Loaded: ' + repr(entity))
     return entity
 
   def _parse_bnode(self, bnode):
@@ -1072,7 +1077,6 @@ class Ontology(Namespace, _GraphManager):
         if not isinstance(Prop, PropertyClass):
           raise TypeError("'%s' belongs to more than one entity types (cannot be both a property and a class/an individual)!" % Prop.iri)
 
-        print(f'Loading {i + 1}/{len(prop_storids)}')
 
       for prop_storid, python_name, d in self.world.graph._get_data_triples_sp_sod(prop_storids, owlready_python_name):
         Prop = self.world._get_by_storid(prop_storid)
