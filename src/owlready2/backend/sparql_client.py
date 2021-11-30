@@ -155,6 +155,6 @@ class SparqlClient:
                         else:
                             inner_result_list.append(
                                 QueryGenerator.deserialize_to_owlready_type(entity['value'], entity["type"],
-                                                                            entity["datatype"]))
+                                                                            entity.get('datatype')))
                 result_list.append(inner_result_list)
         return result_list
