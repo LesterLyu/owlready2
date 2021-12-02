@@ -316,7 +316,18 @@ class SparqlSubGraph(BaseSubGraph):
        """, method='update')
 
     def destroy(self):
-        raise NotImplementedError
+        # Delete the whole graph
+        self.execute(f"DROP GRAPH <{self.graph_iri}>", method='update')
+
+        # Delete metadatas
+        self.execute(f"""
+        delete where {{
+             graph <http://owlready2/internal> {{
+                ?s ?p ?o;
+                   or2:iri "{self.onto.base_iri}".
+            }}
+        }}
+        """)
 
     def _set_obj_triple_raw_spo(self, s, p, o):
         if (s is None) or (p is None) or (o is None):
