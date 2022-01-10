@@ -12,12 +12,12 @@ from uuid import uuid4
 class SparqlGraph(BaseMainGraph):
     _SUPPORT_CLONING = True
 
-    def __init__(self, endpoint: str, world=None, debug=False):
+    def __init__(self, endpoint: str, world=None, debug=False, username=None, password=None):
         self.endpoint = endpoint
         self.world = world
         self.debug = debug
 
-        self.client = SparqlClient(endpoint, world, self._abbreviate, debug)
+        self.client = SparqlClient(endpoint, world, self._abbreviate, debug, username=username, password=password)
         self.execute = self.client.execute_internal
 
         self.storid2iri = {}

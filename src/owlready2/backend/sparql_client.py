@@ -21,7 +21,7 @@ class SparqlClient:
     IRI_REF = r'<([^<>\"{}|^`\]\[\x00-\x20])*>'
     PrefixDecl = re.compile(f'[Pp][Rr][Ee][Ff][Ii][Xx]\\s({PNAME_NS})\\s({IRI_REF})')
 
-    def __init__(self, endpoint, world, _abbreviate, debug=False):
+    def __init__(self, endpoint, world, _abbreviate, debug=False, username=None, password=None):
         self.debug = debug
         self.world = world
         self._abbreviate = _abbreviate
@@ -29,6 +29,9 @@ class SparqlClient:
         self.query_client.setMethod(POST)
         self.update_client = SPARQLWrapper(endpoint + '/statements')
         self.update_client.setMethod(POST)
+        if username:
+            self.query_client.setCredentials(username, password)
+            self.update_client.setCredentials(username, password)
 
     @staticmethod
     def parse_sparql_type(query_string):
