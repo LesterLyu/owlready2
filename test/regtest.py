@@ -1215,7 +1215,7 @@ class Test(BaseTest, unittest.TestCase):
     
     self.assert_triple(i.storid, rdf_type, C1.storid)
     self.assert_triple(i.storid, rdf_type, C2.storid)
-    assert "_AND_" in i.__class__.__name__
+    assert "FusionClass" in i.__class__.__name__
     
   def test_individual_5(self):
     n = self.new_ontology()
@@ -1594,6 +1594,26 @@ class Test(BaseTest, unittest.TestCase):
       l = list(world.graph.execute("select o from objs where s=? and p=6", (i.storid,)))
       assert len(l) == 2
       
+  def test_individual_26(self):
+    world1 = self.new_world()
+    onto1  = world1.get_ontology("http://test.org/onto.owl")
+    
+    with onto1:
+      class C(Thing): pass
+      class D(Thing): pass
+      x1 = C()
+      x1.is_a.append(D)
+      
+    world2 = self.new_world()
+    onto2  = world2.get_ontology("http://test.org/onto.owl")
+    
+    with onto2:
+      class C(Thing): pass
+      class D(Thing): pass
+      x2 = C()
+      x2.is_a.append(D)
+      
+    assert not x1.__class__ is x2.__class__
       
   def test_prop_1(self):
     n = get_ontology("http://www.semanticweb.org/jiba/ontologies/2017/0/test")
@@ -3349,6 +3369,7 @@ I took a placebo
     
     i = [i for i in onto.e.data_prop if isinstance(i, str)][0]
     assert i.lang == "en"
+      
     
   def test_hermit_reasoning_1(self):
     world = self.new_world()
@@ -9082,7 +9103,21 @@ WHERE {
     #print(q.sql)
     #assert { i[0] for i in r } == { onto.a1, a111 }
     
+  def test_144(self):
+    world, onto = self.prepare1()
+    onto.A.label = ["xxx", onto.a1]
+
+    import owlready2.sparql.parser
+    save = owlready2.sparql.parser._DATA_PROPS
+    owlready2.sparql.parser._DATA_PROPS = set()
     
+    q, r = self.sparql(world, """SELECT  ?l { onto:A rdfs:label ?l . ?l a onto:A . }""", compare_with_rdflib = False)
+    assert r == [[onto.a1]]
+    
+    q, r = self.sparql(world, """SELECT  ?l ?c { onto:A rdfs:label ?l . OPTIONAL { ?l a ?c . } }""", compare_with_rdflib = False)
+    assert set(tuple(i) for i in r) == { ("xxx", None), (onto.a1, onto.A), (onto.a1, 12) }
+    
+    owlready2.sparql.parser._DATA_PROPS = save
     
 # Add test for Pellet
 

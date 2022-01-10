@@ -618,6 +618,19 @@ version 2 - 0.35
   - Fix declare_datatype() for datatype already used in Owlready, such as AnyURI
   - Fix Pellet on properties having annotations that are not declared in the loaded ontologies
 
+version 2 - 0.36
+****************
+
+* Faster ontology operation (e.g. ontology deletion) on big quadstores
+* Automatically add .owl, .rdf or .xml to ontology IRI if the IRI itself does not yield an OWL file
+* Bugfixes:
+  - Fix FusionClasses (= individuals belonging to several classes, i.e. multiple instanciation) when using several worlds
+  - Fix OPTIONAL SPARQL clause when guessing variable types
+  - Fix typo in undo entity destruction (thanks Lukas Westhofen)
+  - Fix IRI from OWL namespace in SWRL rules
+  - Fix Pellet explanation on inconsistent ontology
+  - Fix MEDDRA parent-child relation of LLT in PyMedTermino2
+    
     
 Links
 -----

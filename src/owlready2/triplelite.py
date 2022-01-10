@@ -163,7 +163,7 @@ class Graph(BaseMainGraph):
     self.nb_added_triples  = 0
 
     if read_only:
-      self.lock     = multiprocessing.RLock()
+      self.lock = multiprocessing.RLock()
       self.acquire_write_lock = self._acquire_write_lock_read_only
       self.release_write_lock = self._release_write_lock_read_only
     self.lock_level        = 0
@@ -175,7 +175,7 @@ class Graph(BaseMainGraph):
       self.prop_fts         = set()
 
       self.execute("""CREATE TABLE store (version INTEGER, current_blank INTEGER, current_resource INTEGER)""")
-      self.execute("""INSERT INTO store VALUES (9, 0, 300)""")
+      self.execute("""INSERT INTO store VALUES (10, 0, 300)""")
       self.execute("""CREATE TABLE objs (c INTEGER, s INTEGER, p INTEGER, o INTEGER)""")
       self.execute("""CREATE TABLE datas (c INTEGER, s INTEGER, p INTEGER, o BLOB, d INTEGER)""")
       self.execute("""CREATE VIEW quads AS SELECT c,s,p,o,NULL AS d FROM objs UNION ALL SELECT c,s,p,o,d FROM datas""")
@@ -192,9 +192,11 @@ class Graph(BaseMainGraph):
 
       self.execute("""CREATE INDEX index_objs_sp ON objs(s,p)""")
       self.execute("""CREATE UNIQUE INDEX index_objs_op ON objs(o,p,c,s)""") # c is for onto.classes(), etc
+      self.execute("""CREATE INDEX index_objs_c ON objs(c)""")
 
       self.execute("""CREATE INDEX index_datas_sp ON datas(s,p)""")
       self.execute("""CREATE UNIQUE INDEX index_datas_op ON datas(o,p,c,d,s)""")
+      self.execute("""CREATE INDEX index_datas_c ON datas(c)""")
       self.indexed = True
 
       self.execute("""CREATE TABLE last_numbered_iri(prefix TEXT, i INTEGER)""")
@@ -410,6 +412,13 @@ class Graph(BaseMainGraph):
         self.execute("""UPDATE store SET version=9""")
         self.db.commit()
         version += 1
+      if version == 9:
+        print("* Owlready2 * Converting quadstore to internal format 10...", file = sys.stderr)
+        self.execute("""CREATE INDEX index_objs_c ON objs(c)""")
+        self.execute("""CREATE INDEX index_datas_c ON datas(c)""")
+        self.execute("""UPDATE store SET version=10""")
+        self.db.commit()
+        version += 1
 
       self.prop_fts = { storid for (storid,) in self.execute("""SELECT storid FROM prop_fts;""") }
 
@@ -427,12 +436,12 @@ class Graph(BaseMainGraph):
     #self.db.execute("""PRAGMA cache_size = -100""") # The two following queries are * faster * with a small cache!
     #import time
     #t0 = time.perf_counter()
-    #nb_datas = self.execute("""SELECT COUNT() FROM datas INDEXED BY index_datas_sp""").fetchone()[0]
-    nb_datas = self.execute("""SELECT MAX(rowid) FROM datas""").fetchone()[0] or 10
+    nb_datas = self.execute("""SELECT COUNT() FROM datas INDEXED BY index_datas_c""").fetchone()[0]
+    #nb_datas = self.execute("""SELECT MAX(rowid) FROM datas""").fetchone()[0] or 10
     #if nb_datas: print(nb_datas, time.perf_counter() - t0)
     #t0 = time.perf_counter()
-    #nb_objs  = self.execute("""SELECT COUNT() FROM objs INDEXED BY index_objs_sp""" ).fetchone()[0]
-    nb_objs  = self.execute("""SELECT MAX(rowid) FROM objs""" ).fetchone()[0] or 10
+    nb_objs  = self.execute("""SELECT COUNT() FROM objs INDEXED BY index_objs_c""" ).fetchone()[0]
+    #nb_objs  = self.execute("""SELECT MAX(rowid) FROM objs""" ).fetchone()[0] or 10
     #if nb_objs: print(nb_objs, time.perf_counter() - t0)
     #self.db.execute("""PRAGMA cache_size = -200000""")
     nb_iris  = self.execute("""SELECT MAX(storid) FROM resources""" ).fetchone()[0] or 300
@@ -462,12 +471,10 @@ class Graph(BaseMainGraph):
     self.db.close()
 
   def acquire_write_lock(self):
-    #self.lock.acquire()
     if not self.db.in_transaction: self.execute("BEGIN IMMEDIATE")
     self.lock_level += 1
   def release_write_lock(self):
     self.lock_level -= 1
-    #self.lock.release()
   def _acquire_write_lock_read_only(self):
     self.lock.acquire()
   def _release_write_lock_read_only(self):
@@ -526,11 +533,11 @@ class Graph(BaseMainGraph):
   def _unabbreviate(self, storid):
     return self.execute("SELECT iri FROM resources WHERE storid=? LIMIT 1", (storid,)).fetchone()[0]
 
-  
+
   def get_storid_dict(self):
     return dict(self.execute("SELECT storid, iri FROM resources").fetchall())
 
-  
+
   def _new_numbered_iri_2(self, prefix):
     cur = self.execute("SELECT iri FROM resources WHERE iri GLOB ? ORDER BY LENGTH(iri) DESC, iri DESC", ("%s*" % prefix,))
     while True:
@@ -1102,7 +1109,7 @@ class SubGraph(BaseSubGraph):
       cur.execute("DELETE FROM objs WHERE c=?", (self.c,))
       cur.execute("DELETE FROM datas WHERE c=?", (self.c,))
 
-    
+
     # Re-implement _abbreviate() for speed
     abbrevs = {}
     current_resource = max(self.execute("SELECT MAX(storid) FROM resources").fetchone()[0], 300) # First 300 values are reserved
