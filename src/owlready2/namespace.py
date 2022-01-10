@@ -1026,7 +1026,7 @@ class Ontology(Namespace, _GraphManager):
             for ext in ["owl", "rdf", "xml"]:
               f2 = "%s.%s" % (f, ext)
               try:
-                fileobj2 = urllib.request.urlopen(f2)
+                fileobj2 = urllib.request.urlopen(f2, cafile=certifi.where())
                 break
               except: pass
             if not fileobj2: raise
