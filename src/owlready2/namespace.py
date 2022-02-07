@@ -356,7 +356,7 @@ WHERE q1.p=? AND q1.o=?
         if sub is None: yield self._parse_bnode(s)
 
   def search(self, _use_str_as_loc_str = True, _case_sensitive = True, _bm25 = False, **kargs):
-    if self.backend == 'sparql-endpoint':
+    if self.world.backend == 'sparql-endpoint':
       from owlready2.backend import SparqlSearch
       return SparqlSearch.search(self.world, _use_str_as_loc_str = True, _case_sensitive = True, _bm25 = False, **kargs)
 
