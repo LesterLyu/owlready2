@@ -2,6 +2,7 @@ from datetime import date, time, datetime
 import sys
 import json
 import re
+from owlready2.util import locstr
 
 SPARQL_INT_TYPES = ["http://www.w3.org/2001/XMLSchema#integer", "http://www.w3.org/2001/XMLSchema#byte",
                     "http://www.w3.org/2001/XMLSchema#short", "http://www.w3.org/2001/XMLSchema#int",
@@ -39,6 +40,8 @@ class QueryGenerator:
             return f'"{value.isoformat()}"^^xsd:date'
         elif isinstance(value, time):
             return f'"{value.isoformat()}"^^xsd:time'
+        elif isinstance(value, locstr) and value.lang:  # Locale string
+            return f'"{value}"@{value.lang}'
         else:
             raise NotImplemented(f"Unknown Python type: {type(value)}")
 
