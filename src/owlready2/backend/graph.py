@@ -617,3 +617,20 @@ class SparqlGraph(BaseMainGraph):
         items = result["results"]["bindings"]
         if len(items) == 1:
             return self.c2ontology[self.graph_iri2c[items[0]["g"]["value"]]]._parse_bnode(bnode)
+
+    def get_property_iri(self, short_property_name):
+        """
+        Get the property IRI based on the shorthanded property name.
+        Used for onto.search(...) for on-demand loading properties.
+        """
+        result = self.execute(f"""
+            SELECT DISTINCT ?s WHERE {{
+                {{?s rdf:type owl:DatatypeProperty.}}
+                UNION
+                {{?s rdf:type owl:ObjectProperty.}}
+                filter regex(str(?s), "(/|#){short_property_name}$" )
+            }} limit 1
+        """)
+        items = result["results"]["bindings"]
+        if len(items) == 1:
+            return items[0]["s"]["value"]
