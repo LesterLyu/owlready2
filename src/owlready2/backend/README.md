@@ -11,12 +11,12 @@
   - [ ] Nested search
     - [ ] union of the search result.
     - [ ] Intersection of the search result.
-  - [ ] `iri`, for searching entities by its full IRI
-  - [ ] `type`, for searching Individuals of a given Class
-  - [ ] `subclass_of`, for searching subclasses of a given Class
-  - [ ] `is_a`, for searching both Individuals and subclasses of a given Class
-  - [ ] `subproperty_of`, for searching subproperty of a given Property
-  - [ ] any object, data or annotation property name
+  - [x] `iri`, for searching entities by its full IRI
+  - [x] `type`, for searching Individuals of a given Class
+  - [x] `subclass_of`, for searching subclasses of a given Class
+  - [x] `is_a`, for searching both Individuals and subclasses of a given Class
+  - [x] `subproperty_of`, for searching subproperty of a given Property
+  - [x] any object, data or annotation property name
 - [x] Use remote SPARQL engine to perform customized SPARQL query.
 - [x] Implement `SparqlGraph._new_numbered_iri(self, ...)` to generate IRI for newly created individual.
 - [x] Store modified/update time for Ontology in an internal graph (http://owlready2/internal).
