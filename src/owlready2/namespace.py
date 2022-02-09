@@ -585,7 +585,10 @@ class World(_GraphManager):
   def prepare_sparql(self, sparql, error_on_undefined_entities = True): # lru_cache does not handle optional args
     return self._prepare_sparql(sparql, error_on_undefined_entities)
 
-  def get_ontology(self, base_iri, OntologyClass = None, graph_iri=None):
+  def get_ontology(self, base_iri, OntologyClass = None, graph_iri=None, location=None):
+    if location is None:
+      location = base_iri
+
     if (not base_iri.endswith("/")) and (not base_iri.endswith("#")):
       if   ("%s/" % base_iri) in PREDEFINED_ONTOLOGIES: base_iri = base_iri = "%s/" % base_iri
       elif ("%s#" % base_iri) in self.ontologies:       base_iri = base_iri = "%s#" % base_iri
@@ -593,7 +596,7 @@ class World(_GraphManager):
       else:                                             base_iri = base_iri = "%s#" % base_iri
     if base_iri in self.ontologies: return self.ontologies[base_iri]
     # `world.ontologies[self.base_iri] = self` is executed in the Ontology class
-    return (OntologyClass or Ontology)(self, base_iri, graph_iri=graph_iri)
+    return (OntologyClass or Ontology)(self, base_iri, graph_iri=graph_iri, import_location=location)
   def get_namespace(self, base_iri, name = "", NamespaceClass = None):
     if (not base_iri.endswith("/")) and (not base_iri.endswith("#")) and (not base_iri.endswith(":")):
       if   ("%s#" % base_iri) in self.ontologies: base_iri = base_iri = "%s#" % base_iri
@@ -889,11 +892,13 @@ class World(_GraphManager):
 
 
 class Ontology(Namespace, _GraphManager):
-  def __init__(self, world, base_iri, name = None, graph_iri=None):
+  def __init__(self, world, base_iri, name = None, graph_iri=None, import_location=None):
     #need_write = False
     if world.graph: world.graph.acquire_write_lock()
 
     self.graph_iri = graph_iri or base_iri
+    self.import_location = import_location
+    self._use_import_location = True
     # Normally graph IRI does not contain '/' or '#' in the end.
     if self.graph_iri.endswith('/') or self.graph_iri.endswith('#'):
       self.graph_iri = self.graph_iri[:-1]
@@ -941,6 +946,25 @@ class Ontology(Namespace, _GraphManager):
     if world.graph: world.graph.release_write_lock()
     #if need_write: world.graph.release_write_lock()
 
+
+  def set_location(self, location):
+    """
+    Set the ontology location that is used when other ontologies import this.
+    """
+    self.import_location = location
+
+  def use_import_location_in_other_imports(self):
+    """
+    Use ontology file location when other ontologies import this ontology.
+    """
+    self._use_import_location = True
+
+  def use_base_iri_in_other_imports(self):
+    """
+    Use ontology base_iri when other ontologies import this ontology.
+    """
+    self._use_import_location = False
+
   def destroy(self):
     self.world.graph.acquire_write_lock()
     del self.world.ontologies[self.base_iri]
@@ -970,9 +994,15 @@ class Ontology(Namespace, _GraphManager):
     old = set(old)
     new = set(self._imported_ontologies)
     for ontology in old - new:
-      self._del_obj_triple_spo(self.storid, owl_imports, ontology.storid)
+      if ontology._use_import_location:
+        self._del_obj_triple_spo(self.storid, owl_imports, self.world._abbreviate(ontology.import_location))
+      else:
+        self._del_obj_triple_spo(self.storid, owl_imports, ontology.storid)
     for ontology in new - old:
-      self._add_obj_triple_spo(self.storid, owl_imports, ontology.storid)
+      if ontology._use_import_location:
+        self._add_obj_triple_spo(self.storid, owl_imports, self.world._abbreviate(ontology.import_location))
+      else:
+        self._add_obj_triple_spo(self.storid, owl_imports, ontology.storid)
 
   def get_namespace(self, base_iri, name = ""):
     if (not base_iri.endswith("/")) and (not base_iri.endswith("#")) and (not base_iri.endswith(":")): base_iri = "%s#" % base_iri
