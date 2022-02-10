@@ -896,6 +896,11 @@ class Ontology(Namespace, _GraphManager):
     #need_write = False
     if world.graph: world.graph.acquire_write_lock()
 
+    # GraphDB requires the IRI to contain `:`.
+    # This is useful when opening a local file with the sparql-backend.
+    if (':' not in base_iri) and self.world.backend == 'sparql-backend':
+      base_iri = 'file://' + base_iri
+
     self.graph_iri = graph_iri or base_iri
     self.import_location = import_location
     self._use_import_location = True
