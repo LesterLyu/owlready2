@@ -292,7 +292,7 @@ class Thing(metaclass = ThingClass):
               if value is None: value = []
               else:             value = [value]
             else:
-              raise ValueError("Property '%s' is not functional, cannot assign directly (use .append() or assign a list)." % attr)
+              raise ValueError("Property '%s'(%s) is not functional, cannot assign directly (use .append() or assign a list)." % (attr, Prop.iri))
           getattr(self, attr).reinit(value)
           
       elif attr.startswith("INVERSE_"):
