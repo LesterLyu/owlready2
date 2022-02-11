@@ -499,12 +499,13 @@ class SparqlGraph(BaseMainGraph):
             from_clauses.append(f"from named <{graph_iri}>")
         newline = '\n\t\t\t\t'
         query = f"""
-                    select ?o
-                    {newline.join(from_clauses)}
-                    where {{
-                        graph ?g {{<{s_iri}> <{p_iri}>+ ?o.}}
-                    }}
-                """
+            PREFIX ent: <http://www.ontotext.com/owlim/entity#>
+            select ?o ?oid
+            {newline.join(from_clauses)}
+            where {{
+                graph ?g {{<{s_iri}> <{p_iri}>+ ?o. ?o ent:id ?oid.}}
+            }}
+        """
         result = self.execute(query)
         for item in result["results"]["bindings"]:
             yield item["o"]["storid"]
@@ -516,10 +517,11 @@ class SparqlGraph(BaseMainGraph):
             from_clauses.append(f"from named <{graph_iri}>")
         newline = '\n\t\t\t\t'
         query = f"""
-            select ?s
+            PREFIX ent: <http://www.ontotext.com/owlim/entity#>
+            select ?s ?sid
             {newline.join(from_clauses)}
             where {{
-                graph ?g {{?s <{p_iri}>+ <{o_iri}>}}
+                graph ?g {{?s <{p_iri}>+ <{o_iri}>. ?s ent:id ?sid.}}
             }}
         """
         result = self.execute(query)
