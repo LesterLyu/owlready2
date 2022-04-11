@@ -74,7 +74,7 @@ def do_setup(extensions):
                                     "pellet/org/mindswap/pellet/taxonomy/printer/*",
                                     ]},
         ext_modules=extensions,
-        install_requires=['sparqlwrapper', 'tqdm']
+        install_requires=['sparqlwrapper', 'tqdm', 'certifi']
     )
 
 
