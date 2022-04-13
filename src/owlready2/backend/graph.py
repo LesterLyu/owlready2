@@ -575,7 +575,7 @@ class SparqlGraph(BaseMainGraph):
 
     # Optimized queries for multiple subjects/predicates
     def _get_data_triples_sp_sod(self, s: list, p: list):
-        """Take a list of subjects and a predicate."""
+        """Take a list of subjects or a subject and a list of predicates or a predicates."""
         if not isinstance(s, list):
             s = [s]
         if not isinstance(p, list):
@@ -590,7 +590,7 @@ class SparqlGraph(BaseMainGraph):
             yield item["s"]["storid"], item["o"]["value"], item["o"].get("d")
 
     def _get_obj_triples_sp_cspo(self, s: list, p: list):
-        """Take a list of subjects and a predicate."""
+        """Take a list of subjects or a subject and a list of predicates or a predicates."""
         if not isinstance(s, list):
             s = [s]
         if not isinstance(p, list):
