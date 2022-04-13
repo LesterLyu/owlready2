@@ -78,6 +78,12 @@ class SparqlSubGraph(BaseSubGraph):
         datas = []
         bnode_i = 0
 
+        prefixes = {
+            'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf:',
+            'http://www.w3.org/2000/01/rdf-schema#': 'rdfs:',
+            'http://www.w3.org/2002/07/owl#': 'owl:'
+        }
+
         if delete_existing_triples:
             # Delete the whole named graph!
             self.execute(f"DROP GRAPH <{self.graph_iri}>", method='update')
@@ -103,11 +109,9 @@ class SparqlSubGraph(BaseSubGraph):
 
         def insert():
             # TODO: Split it and save it into a file to reduce memory usage?
-            prefixes = {
-                'http://www.w3.org/1999/02/22-rdf-syntax-ns#': 'rdf:',
-                'http://www.w3.org/2000/01/rdf-schema#': 'rdfs:',
-                'http://www.w3.org/2002/07/owl#': 'owl:'
-            }
+            nonlocal prefixes
+            # Sort prefixes
+            # prefixes = OrderedDict(sorted(prefixes.items(), reverse=True))
             PREFIX = '\n'.join([f'PREFIX {val} <{key}>' for key, val in prefixes.items()])
 
             triples = []
@@ -169,7 +173,6 @@ class SparqlSubGraph(BaseSubGraph):
 
             # Split triples with blank nodes
 
-
             self.execute(f"""
                 {PREFIX}
                 insert data {{
@@ -177,8 +180,11 @@ class SparqlSubGraph(BaseSubGraph):
                 }}
                """, method='update')
 
-        def insert_objs(): pass
-        def insert_datas(): pass
+        def insert_objs():
+            pass
+
+        def insert_datas():
+            pass
 
         # TODO: Improve performance: Do we really need to abbreviate IRIs?
         def on_prepare_obj(s, p, o):
@@ -189,6 +195,10 @@ class SparqlSubGraph(BaseSubGraph):
             objs.append((s, _abbreviate(p), o))
 
         def on_prepare_data(s, p, o, d):
+            if isinstance(s, str) and p == 'http://purl.org/vocab/vann/preferredNamespaceUri' \
+                and isinstance(o, str):
+                prefixes[o] = 'temp:'
+
             if isinstance(s, str):
                 s = _abbreviate(s)
             if d and (not d.startswith("@")):
