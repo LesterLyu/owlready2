@@ -415,6 +415,8 @@ def parse(f, on_prepare_obj = None, on_prepare_data = None, new_blank = None, de
       if not iri: iri = ontology_iri
       else:
         if iri.startswith("#") or iri.startswith("/"): iri = ontology_iri + iri
+        if iri.endswith("/"): iri = iri[:-1]
+        if not "//" in iri: iri = urllib.parse.urljoin(prefixes[""], iri)
       objs.append(iri)
       
     elif (tag == "http://www.w3.org/2002/07/owl#AbbreviatedIRI"):
