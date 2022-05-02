@@ -241,7 +241,7 @@ def parse(f, on_prepare_obj = None, on_prepare_data = None, new_blank = None, de
     
     elif (tag == "http://www.w3.org/2002/07/owl#Ontology"):
       ontology_iri = attrs["ontologyIRI"]
-      if ontology_iri.endswith("/"): ontology_iri = ontology_iri[:-1]
+      if ontology_iri.endswith("/") or ontology_iri.endswith("#"): ontology_iri = ontology_iri[:-1]
       on_prepare_obj(ontology_iri, rdf_type, "http://www.w3.org/2002/07/owl#Ontology")
       version_iri = attrs.get("versionIRI")
       if version_iri:
