@@ -1,4 +1,3 @@
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from owlready2.base import *
 from owlready2.driver import BaseMainGraph, BaseSubGraph
 from owlready2.util import FTS, _LazyListMixin
