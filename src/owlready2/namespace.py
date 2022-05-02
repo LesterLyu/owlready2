@@ -1107,7 +1107,7 @@ class Ontology(Namespace, _GraphManager):
     self.world.graph.release_write_lock()
 
     # Load imported ontologies
-    imported_ontologies = [self.world.get_ontology(self._unabbreviate(abbrev_iri)).load(load_all_properties=load_all_properties, reload=reload) for abbrev_iri in self.world._get_obj_triples_sp_o(self.storid, owl_imports)]
+    imported_ontologies = [self.world.get_ontology(self._unabbreviate(abbrev_iri)).load(load_all_properties=load_all_properties) for abbrev_iri in self.world._get_obj_triples_sp_o(self.storid, owl_imports)]
     self._imported_ontologies._set(imported_ontologies)
 
     # Search for property names -- must be done AFTER loading imported ontologies, because the properties might be partly defined in the imported ontologies
