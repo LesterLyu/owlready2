@@ -330,6 +330,7 @@ class SparqlSubGraph(BaseSubGraph):
 
         # Delete metadatas
         self.execute(f"""
+        PREFIX or2: <http://owlready2/internal#>
         delete where {{
              graph <http://owlready2/internal> {{
                 ?s ?p ?o;
