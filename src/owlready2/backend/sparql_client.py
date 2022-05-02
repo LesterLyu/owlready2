@@ -1,15 +1,28 @@
-from SPARQLWrapper import SPARQLWrapper, JSON, POST
 from time import time
 import re
 from owlready2.util import locstr
 from .utils import QueryGenerator
+import requests
+import urllib
+
+POST = 'POST'
+GET = 'GET'
 
 
-class SparqlClient:
-    total_sparql_time = 0
-    total_sparql_queries = 0
-    function_times = {'SparqlClient.parse_sparql_type': [0, 0]}
+class SPARQLResponse:
+    def __init__(self, response: requests.Response, is_update=False):
+        self.response = response
+        self.is_update = is_update
+        if response.status_code >= 400:
+            raise ValueError(f'{response.status_code}: {response.text}')
 
+    def json(self):
+        if self.is_update:
+            return
+        return self.response.json()
+
+
+class SPARQLWrapper:
     # https://www.w3.org/TR/rdf-sparql-query/#rPN_CHARS_BASE
     PN_CHARS_BASE = r"[A-Z]|[a-z]|[\u00C0-\u00D6]|[\u00D8-\u00F6]|[\u00F8-\u02FF]|[\u0370-\u037D]|[\u037F-\u1FFF]" \
                     r"|[\u200C-\u200D]|[\u2070-\u218F]|[\u2C00-\u2FEF]|[\u3001-\uD7FF]|[\uF900-\uFDCF]" \
@@ -21,38 +34,97 @@ class SparqlClient:
     IRI_REF = r'<([^<>\"{}|^`\]\[\x00-\x20])*>'
     PrefixDecl = re.compile(f'[Pp][Rr][Ee][Ff][Ii][Xx]\\s({PNAME_NS})\\s({IRI_REF})')
 
-    def __init__(self, endpoint, world, _abbreviate, debug=False, username=None, password=None):
-        self.debug = debug
-        self.world = world
-        self._abbreviate = _abbreviate
-        self.query_client = SPARQLWrapper(endpoint, returnFormat=JSON)
-        self.query_client.setMethod(POST)
-        self.update_client = SPARQLWrapper(endpoint + '/statements')
-        self.update_client.setMethod(POST)
-        if username:
-            self.query_client.setCredentials(username, password)
-            self.update_client.setCredentials(username, password)
-
     @staticmethod
-    def parse_sparql_type(query_string):
+    def is_update_request(query_string):
         """
         Get the sparql query type: 'select' or 'update'.
         This is required for the sparql endpoint.
         """
         prev_time = time()
         # Remove prefixes
-        query_string = re.sub(re.compile(SparqlClient.PrefixDecl), '', query_string)
+        query_string = re.sub(re.compile(SPARQLWrapper.PrefixDecl), '', query_string)
 
         # Trim the query
         query_string = query_string.strip()
         if re.match(r'^(select|construct|describe|ask)', query_string, re.IGNORECASE):
             SparqlClient.function_times['SparqlClient.parse_sparql_type'][0] += time() - prev_time
             SparqlClient.function_times['SparqlClient.parse_sparql_type'][1] += 1
-            return 'select'
+            return False
         else:
             SparqlClient.function_times['SparqlClient.parse_sparql_type'][0] += time() - prev_time
             SparqlClient.function_times['SparqlClient.parse_sparql_type'][1] += 1
-            return 'update'
+            return True
+
+    def __init__(self, endpoint, is_update=False):
+        self.endpoint = endpoint
+        self.is_update = is_update
+        self.username = None
+        self.password = None
+        self.method = 'POST'
+        self.session = None
+        self._query = None
+
+    def set_method(self, method):
+        self.method = method
+
+    def set_query(self, query):
+        self._query = query
+
+    def set_credentials(self, username, password=None):
+        self.username = username
+        self.password = password
+
+    def query(self):
+        # Init session
+        if self.session is None:
+            self.session = requests.Session()
+            if self.username:
+                self.session.auth = (self.username, self.password)
+
+        if self.method == POST:
+            if self.is_update:
+                response = self.session.request(self.method, self.endpoint,
+                                                data=f'update={urllib.parse.quote(self._query)}',
+                                                headers={
+                                                    'Accept': 'text/plain',
+                                                    'Content-Type': 'application/x-www-form-urlencoded'
+                                                })
+            else:
+                response = self.session.request(self.method, self.endpoint,
+                                                data=f'query={urllib.parse.quote(self._query)}',
+                                                headers={
+                                                    'Accept': 'application/sparql-results+json',
+                                                    'Content-Type': 'application/x-www-form-urlencoded'
+                                                })
+        elif self.method == GET:
+            if self.is_update:
+                raise ValueError('update operations MUST be done by POST')
+
+            response = self.session.request(self.method, self.endpoint,
+                                            params={'query': urllib.parse.quote(self._query)},
+                                            headers={
+                                                'Accept': 'application/sparql-results+json'
+                                            })
+        else:
+            raise ValueError('Illegal method:', self.method)
+
+        return SPARQLResponse(response, is_update=self.is_update)
+
+
+class SparqlClient:
+    total_sparql_time = 0
+    total_sparql_queries = 0
+    function_times = {'SparqlClient.parse_sparql_type': [0, 0]}
+
+    def __init__(self, endpoint, world, _abbreviate, debug=False, username=None, password=None):
+        self.debug = debug
+        self.world = world
+        self._abbreviate = _abbreviate
+        self.query_client = SPARQLWrapper(endpoint, is_update=False)
+        self.update_client = SPARQLWrapper(endpoint + '/statements', is_update=True)
+        if username:
+            self.query_client.set_credentials(username, password)
+            self.update_client.set_credentials(username, password)
 
     def execute_sparql(self, *query, method=None):
         """
@@ -69,15 +141,15 @@ class SparqlClient:
             print(f"execute\n{';'.join(query).strip()}")
 
         # Check which client to use
-        if (method or SparqlClient.parse_sparql_type(query[0])) == 'select':
+        if method == 'select' or not SPARQLWrapper.is_update_request(query[0]):
             client = self.query_client
         else:
             client = self.update_client
 
-        client.setMethod(POST)
-        client.setQuery(';'.join(query))
+        client.set_method(POST)
+        client.set_query(';'.join(query))
         try:
-            result = client.query().convert()
+            result = client.query().json()
 
             SparqlClient.total_sparql_time += time() - prev_time
             SparqlClient.total_sparql_queries += 1
