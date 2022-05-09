@@ -43,6 +43,8 @@ class SPARQLWrapper:
         prev_time = time()
         # Remove prefixes
         query_string = re.sub(re.compile(SPARQLWrapper.PrefixDecl), '', query_string)
+        # Remove comments
+        query_string = re.sub(r'^\s*#.*$', '', query_string, flags=re.MULTILINE)
 
         # Trim the query
         query_string = query_string.strip()
